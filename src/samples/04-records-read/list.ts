@@ -4,8 +4,9 @@ import { defineSample } from "../../sample.js";
 type OrderFields = WorkspaceObjects["sample_order"];
 
 /**
- * Lists records with a field projection, sorting and a page size. The page carries `total` and,
- * when more records exist, an opaque `nextCursor` (see `list-paging.ts`).
+ * Lists records with a field projection, sorting and a page size. The page carries `total` and an
+ * opaque `nextCursor`. Cogover may return a cursor with the last page as well, so a loop stops when
+ * `nextCursor` is absent, which can be one empty page later (see `list-paging.ts`).
  */
 export default defineSample({
     id: "records.list",

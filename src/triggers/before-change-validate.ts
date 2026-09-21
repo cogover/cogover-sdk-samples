@@ -44,7 +44,8 @@ function validate(record: TriggerRecord<OrderFields, Operation>): void {
     if (discount < 0 || discount > subtotal) {
         record.addError("discount", "DISCOUNT_OUT_OF_RANGE", "The discount must be between 0 and the subtotal.");
     }
-    if (record.old?.status === "cancelled" && record.changedFields.includes("subtotal")) {
+    const amountChanged = record.changedFields.includes("subtotal") || record.changedFields.includes("discount");
+    if (record.old?.status === "cancelled" && amountChanged) {
         record.addError(null, "CANCELLED_ORDER_IS_FROZEN", "A cancelled order cannot change its amounts.");
     }
 }

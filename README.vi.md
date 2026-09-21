@@ -67,7 +67,8 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
    COGOVER_LOCAL_PORT=3100 cogover-dev run --profile <project-slug> -- npm run dev
    ```
 
-6. Mở catalog và thử một sample. Mọi lệnh `curl` trong catalog dùng biến `$BASE`:
+6. Mở catalog và thử một sample. Mọi lệnh `curl` trong catalog dùng biến `$BASE`. Catalog nằm
+   ngay tại URL của project, không có dấu `/` ở cuối:
 
    ```bash
    BASE=http://127.0.0.1:3100/api/v1/ts-projects/<project-slug>
@@ -76,8 +77,9 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
    curl -s -X POST "$BASE/records/create" -H "Content-Type: application/json" --data '{"name":"Laptop order","subtotal":1500}'
    ```
 
-Các sample chỉ dùng router, response, invocation và lỗi chạy được cả khi không có Development
-Session (`npm start`); các sample còn lại cần session để gọi tới Cogover.
+Local server luôn cần Development Session, kể cả với các sample không gọi tới Cogover: server
+đọc snapshot invocation từ session. `npm test` kiểm tra các sample không cần session (router,
+response, invocation, lỗi) mà không cần đăng nhập.
 
 ## Danh mục sample
 
@@ -130,7 +132,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `POST /records/batch-insert` | [05-records-write/batch-insert.ts](src/samples/05-records-write/batch-insert.ts) | `records.batchInsert`, `BatchWriteResponse`, `BatchWriteRowResult` | records.batchInsert(records): create up to 200 records; inspect the per-row results. |
 | `POST /records/batch-update` | [05-records-write/batch-update.ts](src/samples/05-records-write/batch-update.ts) | `records.batchUpdate`, `BatchUpdateItem` | records.batchUpdate(items): set a status on up to 200 records in one call. |
 | `POST /records/upsert` | [05-records-write/upsert.ts](src/samples/05-records-write/upsert.ts) | `records.upsertByUniqueField`, `UpsertFields`, `UpsertResult` | records.upsertByUniqueField("email", fields): update the matching customer or create it. |
-| `DELETE /records/delete-many` | [05-records-write/delete-many.ts](src/samples/05-records-write/delete-many.ts) | `records.deleteMany`, `DeleteResult` | records.deleteMany(ids): delete records; the result lists deleted and notDeleted IDs. |
+| `DELETE /records/delete-many` | [05-records-write/delete-many.ts](src/samples/05-records-write/delete-many.ts) | `records.deleteMany`, `DeleteResult` | records.deleteMany(ids): delete orders (or customers with object: "sample_customer"); compare deleted with the request. |
 | `POST /records/lookup-reference` | [05-records-write/lookup-reference.ts](src/samples/05-records-write/lookup-reference.ts) | `RecordReference`, `records.create`, `records.get` | Write a lookup field with an ID and read it back as a RecordReference { id, name, objectSlug }. |
 | `POST /records/field-values` | [05-records-write/field-values.ts](src/samples/05-records-write/field-values.ts) | `UrlValue`, `CreateFields`, `UpdateFields`, `records.create`, `records.update`, `records.get`, `records.deleteMany` | Value formats per field type (text, boolean, choice, UrlValue, number) and clearing with null. |
 
@@ -138,7 +140,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 
 | Route | File | SDK API | Tóm tắt |
 |---|---|---|---|
-| `GET /filters/operators` | [06-filters/operators.ts](src/samples/06-filters/operators.ts) | `object.fields`, `FieldReferences`, `FieldReference`, `FilterCondition`, `FilterOperator`, `records.list` | All FieldReference operators (eq, neq, gt, gte, lt, lte, like, notLike, startsWith, endsWith, in, notIn, isNull, notNull, between); run one with ?op=. |
+| `GET /filters/operators` | [06-filters/operators.ts](src/samples/06-filters/operators.ts) | `object.fields`, `FieldReferences`, `FieldReference`, `FilterCondition`, `FilterOperator`, `records.list` | All FieldReference operators (eq, neq, gt, gte, lt, lte, like, notLike, startsWith, endsWith, in, notIn, isNull, notNull, between) plus tagsIn on an array field; run one with ?op=. |
 | `GET /filters/and-or` | [06-filters/and-or.ts](src/samples/06-filters/and-or.ts) | `and`, `or`, `FilterGroup`, `FilterExpression` | and()/or(): combine conditions into nested FilterGroup expressions. |
 | `GET /filters/sort` | [06-filters/sort.ts](src/samples/06-filters/sort.ts) | `FieldReference.asc`, `FieldReference.desc`, `SortExpression`, `ListOptions.orderBy` | orderBy with several SortExpressions (asc/desc), including the system field updated. |
 | `GET /filters/system-fields` | [06-filters/system-fields.ts](src/samples/06-filters/system-fields.ts) | `FieldReferences (id, created, updated, created_by)` | Filter by the system fields id, created, updated and created_by. |

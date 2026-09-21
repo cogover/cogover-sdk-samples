@@ -1,4 +1,6 @@
-import type { TriggerDefinition, TriggerManifest, TriggerOperation, TriggerRunWhen, TriggerTiming } from "@cogover/sdk";
+import type {
+    TriggerDefinition, TriggerManifest, TriggerOperation, TriggerRunWhen, TriggerSandboxHandler, TriggerTiming,
+} from "@cogover/sdk";
 import { noteWhenShipped } from "./after-change-note-when-shipped.js";
 import { blockDeleteShipped } from "./before-change-block-delete.js";
 import { computeTotal } from "./before-change-compute-total.js";
@@ -22,6 +24,9 @@ export const triggers: readonly TriggerDefinition[] = [
 ];
 
 export const triggerManifests: readonly TriggerManifest[] = triggers.map(trigger => trigger.config);
+
+/** The reserved sandbox entry stored in `TriggerDefinition.__cogoverTriggerHandler`; project code never calls it. */
+export type TriggerEntry = TriggerSandboxHandler;
 
 /** The part of a manifest shown by the catalog route (`GET /`). */
 export interface TriggerSummary {

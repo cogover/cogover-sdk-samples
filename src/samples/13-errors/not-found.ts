@@ -3,7 +3,8 @@ import { defineSample } from "../../sample.js";
 
 /**
  * An SDK error that escapes the handler becomes an HTTP error with `r` equal to the status, the
- * SDK `code` and a safe `msg`; internal details are never returned. `NotFoundError` maps to 404.
+ * SDK `code` and a safe `msg`; Cogover never returns internal details. (The local server of this
+ * repository echoes the message of unknown codes to help debugging.) `NotFoundError` maps to 404.
  */
 export default defineSample({
     id: "errors.not-found",

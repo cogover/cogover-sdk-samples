@@ -17,7 +17,7 @@ export default defineSample({
     curl: `curl -s -X POST "$BASE/state/counter/visits"`,
     handler: async ({ request, state, log }) => {
         const key = request.params.key ?? "";
-        const counters = state.namespace("samples-counters");
+        const counters = state.namespace("samples"); // same namespace as get/set/delete, so DELETE /state/delete/visits resets it
         for (let attempt = 1; attempt <= 3; attempt++) {
             const current: StateEntry<number> | null = await counters.get<number>(key);
             const next = (current?.value ?? 0) + 1;

@@ -11,7 +11,11 @@ import {
 } from "@cogover/sdk";
 import { defineSample } from "../../sample.js";
 
-/** Every public error class and the HTTP status Cogover answers with when it escapes a handler. */
+/**
+ * Every public error class and the HTTP status Cogover answers with when it escapes a handler.
+ * `RetryableError` and a plain `CogoverApiError` fall into the generic 422; on Cogover their message
+ * stays internal, while the local server echoes it to help debugging.
+ */
 const ERRORS: Readonly<Record<string, { readonly status: number; readonly raise: () => never }>> = {
     "validation": { status: 400, raise: () => { throw new ValidationError("Sample validation failure"); } },
     "permission-denied": { status: 403, raise: () => { throw new PermissionDeniedError("Sample permission failure"); } },

@@ -11,7 +11,7 @@ interface Input {
 /**
  * The value format of each field type in writes and reads: text, boolean, single choice (option slug),
  * URL (`UrlValue`), decimal, long text; `null` clears a field. The customer is deleted at the end
- * unless `keep` is true.
+ * unless `keep` is true (delete it later with `/records/delete-many` and `object: "sample_customer"`).
  */
 export default defineSample<Input>({
     id: "records.field-values",
@@ -39,7 +39,11 @@ export default defineSample<Input>({
         // `null` clears a field; other fields keep their values.
         await customers.records.update(id, { note: null, tier: "gold" });
 
-        const stored = await customers.records.get(id);
+        // Without `fields`, a read also carries system lookups such as `updated_by` that `workspace.d.ts`
+        // does not declare; a projection keeps the result equal to the declared `CustomerFields`.
+        const stored = await customers.records.get(id, {
+            fields: ["name", "email", "phone", "tier", "is_active", "website", "credit_limit", "note"],
+        });
         if (stored === null) throw new NotFoundError("sample_customer", id);
         const fields: CustomerFields = stored.fields;
 

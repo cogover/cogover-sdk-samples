@@ -69,7 +69,8 @@ so local development, testing and publishing work exactly as in the starter. It 
    COGOVER_LOCAL_PORT=3100 cogover-dev run --profile <project-slug> -- npm run dev
    ```
 
-6. Open the catalog and try a sample. Every `curl` in the catalog uses `$BASE`:
+6. Open the catalog and try a sample. Every `curl` in the catalog uses `$BASE`. The catalog is
+   served at the project URL itself, without a trailing slash:
 
    ```bash
    BASE=http://127.0.0.1:3100/api/v1/ts-projects/<project-slug>
@@ -78,8 +79,9 @@ so local development, testing and publishing work exactly as in the starter. It 
    curl -s -X POST "$BASE/records/create" -H "Content-Type: application/json" --data '{"name":"Laptop order","subtotal":1500}'
    ```
 
-Samples that only use the router, responses, invocation and errors run without a Development
-Session too (`npm start`); the others need the session to reach Cogover.
+The local server always needs a Development Session, even for samples that never call Cogover:
+it reads the invocation snapshot from the session. `npm test` exercises the session-free samples
+(router, responses, invocation, errors) without one.
 
 ## Sample index
 
@@ -132,7 +134,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `POST /records/batch-insert` | [05-records-write/batch-insert.ts](src/samples/05-records-write/batch-insert.ts) | `records.batchInsert`, `BatchWriteResponse`, `BatchWriteRowResult` | records.batchInsert(records): create up to 200 records; inspect the per-row results. |
 | `POST /records/batch-update` | [05-records-write/batch-update.ts](src/samples/05-records-write/batch-update.ts) | `records.batchUpdate`, `BatchUpdateItem` | records.batchUpdate(items): set a status on up to 200 records in one call. |
 | `POST /records/upsert` | [05-records-write/upsert.ts](src/samples/05-records-write/upsert.ts) | `records.upsertByUniqueField`, `UpsertFields`, `UpsertResult` | records.upsertByUniqueField("email", fields): update the matching customer or create it. |
-| `DELETE /records/delete-many` | [05-records-write/delete-many.ts](src/samples/05-records-write/delete-many.ts) | `records.deleteMany`, `DeleteResult` | records.deleteMany(ids): delete records; the result lists deleted and notDeleted IDs. |
+| `DELETE /records/delete-many` | [05-records-write/delete-many.ts](src/samples/05-records-write/delete-many.ts) | `records.deleteMany`, `DeleteResult` | records.deleteMany(ids): delete orders (or customers with object: "sample_customer"); compare deleted with the request. |
 | `POST /records/lookup-reference` | [05-records-write/lookup-reference.ts](src/samples/05-records-write/lookup-reference.ts) | `RecordReference`, `records.create`, `records.get` | Write a lookup field with an ID and read it back as a RecordReference { id, name, objectSlug }. |
 | `POST /records/field-values` | [05-records-write/field-values.ts](src/samples/05-records-write/field-values.ts) | `UrlValue`, `CreateFields`, `UpdateFields`, `records.create`, `records.update`, `records.get`, `records.deleteMany` | Value formats per field type (text, boolean, choice, UrlValue, number) and clearing with null. |
 
@@ -140,7 +142,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 
 | Route | File | SDK APIs | Summary |
 |---|---|---|---|
-| `GET /filters/operators` | [06-filters/operators.ts](src/samples/06-filters/operators.ts) | `object.fields`, `FieldReferences`, `FieldReference`, `FilterCondition`, `FilterOperator`, `records.list` | All FieldReference operators (eq, neq, gt, gte, lt, lte, like, notLike, startsWith, endsWith, in, notIn, isNull, notNull, between); run one with ?op=. |
+| `GET /filters/operators` | [06-filters/operators.ts](src/samples/06-filters/operators.ts) | `object.fields`, `FieldReferences`, `FieldReference`, `FilterCondition`, `FilterOperator`, `records.list` | All FieldReference operators (eq, neq, gt, gte, lt, lte, like, notLike, startsWith, endsWith, in, notIn, isNull, notNull, between) plus tagsIn on an array field; run one with ?op=. |
 | `GET /filters/and-or` | [06-filters/and-or.ts](src/samples/06-filters/and-or.ts) | `and`, `or`, `FilterGroup`, `FilterExpression` | and()/or(): combine conditions into nested FilterGroup expressions. |
 | `GET /filters/sort` | [06-filters/sort.ts](src/samples/06-filters/sort.ts) | `FieldReference.asc`, `FieldReference.desc`, `SortExpression`, `ListOptions.orderBy` | orderBy with several SortExpressions (asc/desc), including the system field updated. |
 | `GET /filters/system-fields` | [06-filters/system-fields.ts](src/samples/06-filters/system-fields.ts) | `FieldReferences (id, created, updated, created_by)` | Filter by the system fields id, created, updated and created_by. |

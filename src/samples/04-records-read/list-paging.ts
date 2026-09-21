@@ -3,7 +3,8 @@ import { defineSample } from "../../sample.js";
 
 /**
  * Walks through several pages with the opaque cursor. Every page is one capability call, so keep
- * `maxPages` small in production code and stop when `nextCursor` is absent.
+ * `maxPages` small in production code and stop when `nextCursor` is absent. The last page may come
+ * back empty: a cursor does not promise more records.
  */
 export default defineSample({
     id: "records.list-paging",

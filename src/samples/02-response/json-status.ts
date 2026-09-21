@@ -1,4 +1,4 @@
-import type { ResponseHeaderValue, ResponseInit } from "@cogover/sdk";
+import type { ResponseApi, ResponseHeaderValue, ResponseInit, ScriptResponse } from "@cogover/sdk";
 import { defineSample } from "../../sample.js";
 
 /**
@@ -15,11 +15,14 @@ export default defineSample({
     file: "src/samples/02-response/json-status.ts",
     curl: `curl -s -i -X POST "$BASE/response/json" -H "Content-Type: application/json" --data '{}'`,
     handler: ({ response }) => {
+        const api: ResponseApi = response;
         const tags: ResponseHeaderValue = ["sample", "json"];
         const init: ResponseInit = {
             status: 201,
             headers: { location: "/response/json/ORD-1", "x-sample-tags": tags },
         };
-        return response.json({ id: "ORD-1", created: true }, init);
+        // The helpers return an opaque ScriptResponse; project code never builds the envelope itself.
+        const created: ScriptResponse<{ id: string; created: boolean }> = api.json({ id: "ORD-1", created: true }, init);
+        return created;
     },
 });

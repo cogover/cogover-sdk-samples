@@ -22,7 +22,8 @@ export default defineSample({
             return { updated: true, id: recordId };
         } catch (error) {
             if (error instanceof NotFoundError) {
-                return { r: 1004, msg: "The order does not exist.", resource: error.resource, resourceId: error.resourceId };
+                // Cogover may report a generic resource ("record"/"unknown"); echo the ID this request asked for.
+                return { r: 1004, msg: "The order does not exist.", recordId, notFound: { resource: error.resource, resourceId: error.resourceId } };
             }
             if (error instanceof PermissionDeniedError) {
                 return { r: 1003, msg: "You cannot update this order.", code: error.code };

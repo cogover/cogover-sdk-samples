@@ -13,7 +13,7 @@ export default defineSample({
     id: "filters.operators",
     method: "GET",
     path: "/filters/operators",
-    summary: "All FieldReference operators (eq, neq, gt, gte, lt, lte, like, notLike, startsWith, endsWith, in, notIn, isNull, notNull, between); run one with ?op=.",
+    summary: "All FieldReference operators (eq, neq, gt, gte, lt, lte, like, notLike, startsWith, endsWith, in, notIn, isNull, notNull, between) plus tagsIn on an array field; run one with ?op=.",
     sdk: ["object.fields", "FieldReferences", "FieldReference", "FilterCondition", "FilterOperator", "records.list"],
     file: "src/samples/06-filters/operators.ts",
     curl: `curl -s "$BASE/filters/operators?op=in"`,
