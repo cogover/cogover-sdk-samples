@@ -20,7 +20,7 @@ export default defineSample({
         const recordId = request.params.recordId ?? "";
         const orders: ObjectClient<OrderFields> = data.object("sample_order");
         const options: GetRecordOptions<OrderFields> = {
-            fields: ["name", "status", "total", "customer", "files"],
+            fields: ["name", "status", "total", "customer", "note", "files"],
         };
         const order: CogoverRecord<OrderFields> | null = await orders.records.get(recordId, options);
         if (order === null) throw new NotFoundError("sample_order", recordId);
