@@ -8,6 +8,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { jobs } from "../src/jobs/index.js";
 import { samples } from "../src/samples/index.js";
 import { triggers } from "../src/triggers/index.js";
 
@@ -29,6 +30,15 @@ const GROUP_TITLES: Readonly<Record<string, Readonly<Record<Lang, string>>>> = {
     "13-errors": { en: "Errors", vi: "Lỗi" },
     "14-push": { en: "Push messages", vi: "Push message" },
     "15-legacy": { en: "Compatibility", vi: "Tương thích" },
+    "16-jobs": { en: "Background jobs", vi: "Background job" },
+    "17-secrets": { en: "Secrets", vi: "Secret" },
+    "18-crypto": { en: "Cryptography", vi: "Mật mã" },
+    "19-inbound": { en: "Inbound webhooks", vi: "Inbound webhook" },
+};
+
+const JOB_FILES: Readonly<Record<string, string>> = {
+    sample_recount_orders: "src/jobs/recount-orders.ts",
+    sample_cancel_stale_orders: "src/jobs/cancel-stale-orders.ts",
 };
 
 const TRIGGER_FILES: Readonly<Record<string, string>> = {
@@ -63,9 +73,18 @@ function render(lang: Lang): string {
         const file = TRIGGER_FILES[trigger.key] ?? "src/triggers/index.ts";
         lines.push(`| \`${trigger.key}\` | ${trigger.config.timing} | ${trigger.config.operations.join(", ")} | [${file.replace("src/triggers/", "")}](${file}) |`);
     }
+    lines.push("", vi ? "### Background job" : "### Background jobs", "");
+    lines.push(vi ? "| Key | Lịch | File |" : "| Key | Schedule | File |", "|---|---|---|");
+    for (const job of jobs) {
+        const file = JOB_FILES[job.key] ?? "src/jobs/index.ts";
+        const schedule = job.config.schedule === undefined
+            ? (vi ? "theo enqueue" : "on enqueue")
+            : `\`${job.config.schedule.cron}\` (${job.config.schedule.timezone})`;
+        lines.push(`| \`${job.key}\` | ${schedule} | [${file.replace("src/jobs/", "")}](${file}) |`);
+    }
     lines.push("", vi
-        ? `Tổng cộng: ${samples.length} route và ${triggers.length} record trigger.`
-        : `Total: ${samples.length} routes and ${triggers.length} record triggers.`, "");
+        ? `Tổng cộng: ${samples.length} route, ${triggers.length} record trigger và ${jobs.length} background job.`
+        : `Total: ${samples.length} routes, ${triggers.length} record triggers and ${jobs.length} background jobs.`, "");
     return lines.join("\n");
 }
 

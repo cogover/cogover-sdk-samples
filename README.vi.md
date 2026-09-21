@@ -16,8 +16,10 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
 ## Có gì bên trong
 
 - `src/samples/<nhóm>/<tên>.ts`: mỗi file một sample, mỗi sample một route, gom theo nhóm API của
-  SDK (router, response, record, filter, danh tính, state, lock, fetch, schema, logging, lỗi, push).
+  SDK (router, response, record, filter, danh tính, state, lock, fetch, schema, logging, lỗi, push,
+  job, secret, mật mã, inbound webhook).
 - `src/triggers/`: record trigger before-change và after-change trên Object demo `sample_order`.
+- `src/jobs/`: một background job chạy khi enqueue và một job chạy theo lịch, khai báo bằng `defineJob`.
 - `GET /`: catalog. Liệt kê mọi sample kèm route, các SDK API được minh họa, file nguồn và một lệnh
   `curl` chạy ngay được.
 - `src/entries/define-script.ts`: kiểu entry point một endpoint (`defineScript`) thay cho router.
@@ -27,7 +29,7 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
 
 ## Yêu cầu
 
-- Node.js 20 trở lên và Cogover Dev CLI (`npm install --global @cogover/dev-cli`).
+- Node.js 20 trở lên và Cogover Dev CLI 0.13 trở lên (`npm install --global @cogover/dev-cli`).
 - Một Workspace Cogover mà bạn có quyền tạo Object và tạo Project Custom Backend Module.
 - Project key để tạo Development Session khi phát triển local, và Workspace API key nếu publish.
 
@@ -112,7 +114,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 
 | Route | File | SDK API | Tóm tắt |
 |---|---|---|---|
-| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership` | context.invocation: who is calling (user or system) and which workspace, without a data request. |
+| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `InboundInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership` | context.invocation: who is calling (user, system or inbound webhook) and which workspace, without a data request. |
 
 ### Record: đọc
 
@@ -176,6 +178,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `GET /fetch/get-json` | [10-fetch/get-json.ts](src/samples/10-fetch/get-json.ts) | `fetch`, `CogoverFetchResponse`, `CogoverFetchHeaders`, `response.json` | fetch(url): GET a public HTTPS resource and read the JSON body (latest @cogover/sdk version). |
 | `POST /fetch/post-json` | [10-fetch/post-json.ts](src/samples/10-fetch/post-json.ts) | `fetch`, `CogoverFetchInit` | fetch(url, { method: "POST", headers, body, timeoutMs }): send JSON to an external HTTPS API. |
 | `GET /fetch/errors` | [10-fetch/error-handling.ts](src/samples/10-fetch/error-handling.ts) | `fetch`, `CogoverApiError`, `RateLimitError`, `ValidationError` | Catch fetch failures: CogoverApiError codes (FETCH_TIMEOUT, FETCH_BLOCKED, ...), RateLimitError, ValidationError. |
+| `GET /fetch/credential` | [10-fetch/credential.ts](src/samples/10-fetch/credential.ts) | `fetch`, `CogoverFetchInit.credential` | fetch(url, { credential }): let Cogover attach a stored credential; the code never sees the value. |
 
 ### Schema
 
@@ -212,6 +215,36 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 |---|---|---|---|
 | `GET /legacy/create-greeting` | [15-legacy/create-greeting.ts](src/samples/15-legacy/create-greeting.ts) | `createGreeting` | createGreeting(name): the SDK 0.1.x compatibility helper. |
 
+### Background job
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `POST /jobs/enqueue` | [16-jobs/enqueue.ts](src/samples/16-jobs/enqueue.ts) | `context.jobs`, `JobsApi`, `jobs.enqueue`, `EnqueueOptions`, `EnqueueResult`, `defineJob` | jobs.enqueue(key, payload, { idempotencyKey }): start a background job run; duplicate keys return the existing run. |
+| `POST /jobs/enqueue-delayed` | [16-jobs/enqueue-delayed.ts](src/samples/16-jobs/enqueue-delayed.ts) | `jobs.enqueue`, `EnqueueOptions.delayMs`, `EnqueueOptions.runAt`, `JobSchedule` | jobs.enqueue(key, null, { delayMs } \| { runAt }): run a job later instead of as soon as possible. |
+
+### Secret
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `GET /secrets/get/:name` | [17-secrets/get.ts](src/samples/17-secrets/get.ts) | `context.secrets`, `SecretsApi`, `secrets.get` | secrets.get(name): read a project secret without ever exposing its value. |
+
+### Mật mã
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `POST /crypto/sha256` | [18-crypto/sha256.ts](src/samples/18-crypto/sha256.ts) | `crypto`, `context.crypto`, `CryptoApi`, `crypto.sha256` | crypto.sha256(data, encoding): SHA-256 of a string or bytes as hex or base64. |
+| `POST /crypto/hmac` | [18-crypto/hmac.ts](src/samples/18-crypto/hmac.ts) | `crypto.hmacSha256` | crypto.hmacSha256(key \| { secret }, data): sign data with a key or with a project secret you never read. |
+| `POST /crypto/verify` | [18-crypto/verify-signature.ts](src/samples/18-crypto/verify-signature.ts) | `crypto.hmacSha256`, `crypto.timingSafeEqual` | Recompute an HMAC and compare it with crypto.timingSafeEqual() to verify a signature. |
+| `POST /crypto/timing-safe-equal` | [18-crypto/timing-safe-equal.ts](src/samples/18-crypto/timing-safe-equal.ts) | `crypto.timingSafeEqual` | crypto.timingSafeEqual(a, b): compare tokens or signatures in constant time. |
+| `GET /crypto/random` | [18-crypto/random.ts](src/samples/18-crypto/random.ts) | `crypto.randomBytes`, `crypto.randomUUID` | crypto.randomBytes(length) and crypto.randomUUID(): secure tokens, nonces and IDs. |
+
+### Inbound webhook
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `POST /hooks/ping` | [19-inbound/hooks-ping.ts](src/samples/19-inbound/hooks-ping.ts) | `InboundInvocationContext`, `invocation.inbound`, `request.rawBody`, `request.contentType` | A webhook route under /hooks/: accept only inbound calls and echo invocation.inbound and the raw body. |
+| `POST /hooks/order-events` | [19-inbound/hooks-order-events.ts](src/samples/19-inbound/hooks-order-events.ts) | `invocation.identity`, `request.rawBody`, `crypto.hmacSha256`, `crypto.timingSafeEqual`, `jobs.enqueue` | Webhook receiver: verify an HMAC signature over request.rawBody with a secret, then enqueue a job keyed by the event ID. |
+
 ### Record trigger
 
 | Key | Timing | Operation | File |
@@ -221,7 +254,14 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_order_block_delete_shipped` | beforeChange | delete | [before-change-block-delete.ts](src/triggers/before-change-block-delete.ts) |
 | `sample_order_note_when_shipped` | afterChange | create, update | [after-change-note-when-shipped.ts](src/triggers/after-change-note-when-shipped.ts) |
 
-Tổng cộng: 50 route và 4 record trigger.
+### Background job
+
+| Key | Lịch | File |
+|---|---|---|
+| `sample_recount_orders` | theo enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
+| `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
+
+Tổng cộng: 61 route, 4 record trigger và 2 background job.
 <!-- catalog:end -->
 
 ## Chạy record trigger trên local server
@@ -240,6 +280,46 @@ Response cho thấy `changes` và `errors` mà mỗi trigger tạo ra. Khi thử
 chạy session bằng `cogover-dev run --allow-writes=false` để một lệnh ghi trong handler cũng thất bại
 trên local như trên Cogover. Trigger after-change ghi ghi chú và push refresh nên cần session cho
 phép ghi.
+
+## Background job, secret và inbound webhook
+
+Ba nhóm này khai báo trong code nhưng được cấu hình trên Cogover, nên khi thiếu cấu hình các sample
+trả về object `r`/`msg` giải thích thay vì lỗi:
+
+- **Job** (`src/jobs/`, `POST /jobs/enqueue`, `POST /jobs/enqueue-delayed`): Cogover chỉ nhận
+  enqueue cho job key mà version đang active khai báo, và local server không chạy job. Publish và
+  activate project này, rồi enqueue từ route hoặc bằng CLI và theo dõi run:
+
+  ```bash
+  cogover-dev jobs enqueue sample_recount_orders
+  cogover-dev jobs runs
+  cogover-dev jobs schedules
+  ```
+
+  Job enqueue lưu kết quả tại `GET /state/get/order-count`.
+- **Secret** (`GET /secrets/get/:name`, `POST /crypto/hmac` với `secret`, `GET /fetch/credential`):
+  tạo một secret đọc được và một credential cho project, rồi đọc hoặc dùng chúng:
+
+  ```bash
+  cogover-dev secrets set sample_erp_token
+  cogover-dev secrets set sample_webhook_secret
+  cogover-dev secrets set sample_httpbin --kind BEARER --allowed-hosts httpbin.org
+  ```
+
+  Development Session local chỉ dùng được secret khi quản trị viên cho phép; nếu không, sample trả
+  về reason `SECRETS_NOT_ALLOWED` (hoặc `FETCH_BLOCKED` với credential).
+- **Inbound webhook** (`POST /hooks/ping`, `POST /hooks/order-events`): tạo inbound access rồi gọi
+  URL webhook được in ra kèm inbound key. Gọi qua URL project thường hoặc local server thì danh tính
+  là user và cả hai route chủ động trả 403.
+
+  ```bash
+  cogover-dev inbound create ping
+  curl -s -X POST "https://<workspace>/api/v1/ts-projects/<slug>/hooks/<inboundId>/ping" \
+    -H "X-Cogover-Inbound-Key: <inbound key>" -H "Content-Type: application/json" --data '{"hello":"webhook"}'
+  ```
+
+Băm, HMAC với key tường minh và giá trị ngẫu nhiên của `crypto` chạy được ở mọi ngữ cảnh, kể cả
+local server.
 
 ## Entry point một endpoint
 
@@ -262,7 +342,8 @@ cogover-dev activate <version-id>
 
 Đọc kỹ trước khi publish lên Workspace có dữ liệu thật: các sample ghi sẽ tạo, sửa và xóa record
 của Object demo, `identity/as-system` đọc mà không áp quyền record của người gọi, các sample push
-gửi thông báo tới người dùng thật, và các trigger chạy cho mọi lần ghi vào `sample_order`. Hãy
+gửi thông báo tới người dùng thật, các trigger chạy cho mọi lần ghi vào `sample_order`, và job theo
+lịch hủy các `sample_order` cũ mỗi đêm trong lúc version còn active. Hãy
 publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi `src/samples/index.ts` và
 `src/triggers/index.ts`.
 
@@ -305,6 +386,7 @@ tương thích). Các test còn lại thuộc bộ công cụ local của starte
     ├── sample.ts             # defineSample(): mỗi sample một route
     ├── workspace.d.ts        # khai báo kiểu của Object demo
     ├── entries/define-script.ts
+    ├── jobs/                 # defineJob(): một job enqueue, một job theo lịch
     ├── samples/<nhóm>/<tên>.ts
     └── triggers/
 ```

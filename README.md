@@ -16,8 +16,10 @@ so local development, testing and publishing work exactly as in the starter. It 
 ## What is inside
 
 - `src/samples/<area>/<name>.ts`: one sample per file, one route per sample, grouped by SDK area
-  (router, response, records, filters, identity, state, locks, fetch, schema, logging, errors, push).
+  (router, response, records, filters, identity, state, locks, fetch, schema, logging, errors, push,
+  jobs, secrets, crypto, inbound webhooks).
 - `src/triggers/`: before-change and after-change record triggers on the demo Object `sample_order`.
+- `src/jobs/`: an enqueued background job and a scheduled one, declared with `defineJob`.
 - `GET /`: the catalog. It lists every sample with its route, the SDK APIs it shows, its source file
   and a ready-to-run `curl`.
 - `src/entries/define-script.ts`: the single-endpoint entry style (`defineScript`) as an alternative
@@ -28,7 +30,7 @@ so local development, testing and publishing work exactly as in the starter. It 
 
 ## Requirements
 
-- Node.js 20 or later and the Cogover Dev CLI (`npm install --global @cogover/dev-cli`).
+- Node.js 20 or later and the Cogover Dev CLI 0.13 or later (`npm install --global @cogover/dev-cli`).
 - A Cogover Workspace where you can create Objects and a Custom Backend Module Project.
 - A Project key for local Development Sessions, and a Workspace API key if you publish.
 
@@ -114,7 +116,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 
 | Route | File | SDK APIs | Summary |
 |---|---|---|---|
-| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership` | context.invocation: who is calling (user or system) and which workspace, without a data request. |
+| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `InboundInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership` | context.invocation: who is calling (user, system or inbound webhook) and which workspace, without a data request. |
 
 ### Records: read
 
@@ -178,6 +180,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `GET /fetch/get-json` | [10-fetch/get-json.ts](src/samples/10-fetch/get-json.ts) | `fetch`, `CogoverFetchResponse`, `CogoverFetchHeaders`, `response.json` | fetch(url): GET a public HTTPS resource and read the JSON body (latest @cogover/sdk version). |
 | `POST /fetch/post-json` | [10-fetch/post-json.ts](src/samples/10-fetch/post-json.ts) | `fetch`, `CogoverFetchInit` | fetch(url, { method: "POST", headers, body, timeoutMs }): send JSON to an external HTTPS API. |
 | `GET /fetch/errors` | [10-fetch/error-handling.ts](src/samples/10-fetch/error-handling.ts) | `fetch`, `CogoverApiError`, `RateLimitError`, `ValidationError` | Catch fetch failures: CogoverApiError codes (FETCH_TIMEOUT, FETCH_BLOCKED, ...), RateLimitError, ValidationError. |
+| `GET /fetch/credential` | [10-fetch/credential.ts](src/samples/10-fetch/credential.ts) | `fetch`, `CogoverFetchInit.credential` | fetch(url, { credential }): let Cogover attach a stored credential; the code never sees the value. |
 
 ### Schema
 
@@ -214,6 +217,36 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 |---|---|---|---|
 | `GET /legacy/create-greeting` | [15-legacy/create-greeting.ts](src/samples/15-legacy/create-greeting.ts) | `createGreeting` | createGreeting(name): the SDK 0.1.x compatibility helper. |
 
+### Background jobs
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `POST /jobs/enqueue` | [16-jobs/enqueue.ts](src/samples/16-jobs/enqueue.ts) | `context.jobs`, `JobsApi`, `jobs.enqueue`, `EnqueueOptions`, `EnqueueResult`, `defineJob` | jobs.enqueue(key, payload, { idempotencyKey }): start a background job run; duplicate keys return the existing run. |
+| `POST /jobs/enqueue-delayed` | [16-jobs/enqueue-delayed.ts](src/samples/16-jobs/enqueue-delayed.ts) | `jobs.enqueue`, `EnqueueOptions.delayMs`, `EnqueueOptions.runAt`, `JobSchedule` | jobs.enqueue(key, null, { delayMs } \| { runAt }): run a job later instead of as soon as possible. |
+
+### Secrets
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `GET /secrets/get/:name` | [17-secrets/get.ts](src/samples/17-secrets/get.ts) | `context.secrets`, `SecretsApi`, `secrets.get` | secrets.get(name): read a project secret without ever exposing its value. |
+
+### Cryptography
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `POST /crypto/sha256` | [18-crypto/sha256.ts](src/samples/18-crypto/sha256.ts) | `crypto`, `context.crypto`, `CryptoApi`, `crypto.sha256` | crypto.sha256(data, encoding): SHA-256 of a string or bytes as hex or base64. |
+| `POST /crypto/hmac` | [18-crypto/hmac.ts](src/samples/18-crypto/hmac.ts) | `crypto.hmacSha256` | crypto.hmacSha256(key \| { secret }, data): sign data with a key or with a project secret you never read. |
+| `POST /crypto/verify` | [18-crypto/verify-signature.ts](src/samples/18-crypto/verify-signature.ts) | `crypto.hmacSha256`, `crypto.timingSafeEqual` | Recompute an HMAC and compare it with crypto.timingSafeEqual() to verify a signature. |
+| `POST /crypto/timing-safe-equal` | [18-crypto/timing-safe-equal.ts](src/samples/18-crypto/timing-safe-equal.ts) | `crypto.timingSafeEqual` | crypto.timingSafeEqual(a, b): compare tokens or signatures in constant time. |
+| `GET /crypto/random` | [18-crypto/random.ts](src/samples/18-crypto/random.ts) | `crypto.randomBytes`, `crypto.randomUUID` | crypto.randomBytes(length) and crypto.randomUUID(): secure tokens, nonces and IDs. |
+
+### Inbound webhooks
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `POST /hooks/ping` | [19-inbound/hooks-ping.ts](src/samples/19-inbound/hooks-ping.ts) | `InboundInvocationContext`, `invocation.inbound`, `request.rawBody`, `request.contentType` | A webhook route under /hooks/: accept only inbound calls and echo invocation.inbound and the raw body. |
+| `POST /hooks/order-events` | [19-inbound/hooks-order-events.ts](src/samples/19-inbound/hooks-order-events.ts) | `invocation.identity`, `request.rawBody`, `crypto.hmacSha256`, `crypto.timingSafeEqual`, `jobs.enqueue` | Webhook receiver: verify an HMAC signature over request.rawBody with a secret, then enqueue a job keyed by the event ID. |
+
 ### Record triggers
 
 | Key | Timing | Operations | File |
@@ -223,7 +256,14 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_order_block_delete_shipped` | beforeChange | delete | [before-change-block-delete.ts](src/triggers/before-change-block-delete.ts) |
 | `sample_order_note_when_shipped` | afterChange | create, update | [after-change-note-when-shipped.ts](src/triggers/after-change-note-when-shipped.ts) |
 
-Total: 50 routes and 4 record triggers.
+### Background jobs
+
+| Key | Schedule | File |
+|---|---|---|
+| `sample_recount_orders` | on enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
+| `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
+
+Total: 61 routes, 4 record triggers and 2 background jobs.
 <!-- catalog:end -->
 
 ## Record triggers on the local server
@@ -242,6 +282,47 @@ The response shows the `changes` and `errors` each trigger produced. Start the s
 `cogover-dev run --allow-writes=false` while testing before-change triggers, so that a write in a
 handler fails locally as it would on Cogover. The after-change trigger writes a note and pushes a
 refresh, so it needs a session that allows writes.
+
+## Background jobs, secrets and inbound webhooks
+
+These three areas are declared in code but configured on Cogover, so their samples answer with an
+explicit `r`/`msg` object instead of failing when the configuration is missing:
+
+- **Jobs** (`src/jobs/`, `POST /jobs/enqueue`, `POST /jobs/enqueue-delayed`): Cogover accepts an
+  enqueue only for job keys declared by the active published version, and the local server does
+  not execute jobs. Publish and activate this project, then enqueue from the route or with the CLI,
+  and follow the run:
+
+  ```bash
+  cogover-dev jobs enqueue sample_recount_orders
+  cogover-dev jobs runs
+  cogover-dev jobs schedules
+  ```
+
+  The enqueued job stores its result under `GET /state/get/order-count`.
+- **Secrets** (`GET /secrets/get/:name`, `POST /crypto/hmac` with `secret`, `GET /fetch/credential`):
+  store a readable secret and a credential for the project, then read or use them:
+
+  ```bash
+  cogover-dev secrets set sample_erp_token
+  cogover-dev secrets set sample_webhook_secret
+  cogover-dev secrets set sample_httpbin --kind BEARER --allowed-hosts httpbin.org
+  ```
+
+  A local Development Session may use secrets only when its administrator allowed it; otherwise
+  the samples answer with reason `SECRETS_NOT_ALLOWED` (or `FETCH_BLOCKED` for a credential).
+- **Inbound webhooks** (`POST /hooks/ping`, `POST /hooks/order-events`): create an inbound access
+  and call the printed webhook URL with the inbound key. Through the normal project URL or the
+  local server the identity is a user and both routes answer 403 on purpose.
+
+  ```bash
+  cogover-dev inbound create ping
+  curl -s -X POST "https://<workspace>/api/v1/ts-projects/<slug>/hooks/<inboundId>/ping" \
+    -H "X-Cogover-Inbound-Key: <inbound key>" -H "Content-Type: application/json" --data '{"hello":"webhook"}'
+  ```
+
+`crypto` hashing, HMAC with an explicit key, and random values work in every context, including the
+local server.
 
 ## Single-endpoint entry point
 
@@ -264,8 +345,9 @@ cogover-dev activate <version-id>
 
 Read this before publishing to a Workspace with real data: the write samples create, update and
 delete records of the demo Objects, `identity/as-system` reads without the caller's record
-permissions, the push samples notify real users, and the triggers run for every write to
-`sample_order`. Publish to a test Workspace, or remove the samples you do not want from
+permissions, the push samples notify real users, the triggers run for every write to
+`sample_order`, and the scheduled job cancels stale `sample_order` records every night while the
+version is active. Publish to a test Workspace, or remove the samples you do not want from
 `src/samples/index.ts` and `src/triggers/index.ts`.
 
 ## Keeping up with SDK releases
@@ -307,6 +389,7 @@ mapping, compatibility helper). The other tests belong to the starter's local to
     ├── sample.ts             # defineSample(): one route per sample
     ├── workspace.d.ts        # typed declarations of the demo Objects
     ├── entries/define-script.ts
+    ├── jobs/                 # defineJob(): one enqueued job, one scheduled job
     ├── samples/<area>/<name>.ts
     └── triggers/
 ```

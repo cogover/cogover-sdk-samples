@@ -1,5 +1,6 @@
 import { createRouter } from "@cogover/sdk";
 import type { ScriptRouter } from "@cogover/sdk";
+import { jobs, jobSummaries } from "./jobs/index.js";
 import { samples } from "./samples/index.js";
 import { triggers, triggerSummaries } from "./triggers/index.js";
 
@@ -10,8 +11,9 @@ import { triggers, triggerSummaries } from "./triggers/index.js";
  *   GET /            -> this catalog (every sample, its route, SDK APIs, source file and a curl)
  *   GET /router/hello, POST /records/create, ... -> one sample each
  *
- * Record triggers are not routes; they are listed in the named `triggers` export below and, on the
- * local server, can be run through `POST /__cogover/triggers/<key>`.
+ * Record triggers and background jobs are not routes; they are listed in the named `triggers` and
+ * `jobs` exports below. On the local server a trigger can be run through
+ * `POST /__cogover/triggers/<key>`; jobs run only on Cogover after the project is published.
  */
 const router: ScriptRouter = createRouter();
 for (const sample of samples) {
@@ -25,7 +27,8 @@ router.get("/", () => ({
         id, method, path, summary, sdk, file, curl,
     })),
     triggers: triggerSummaries,
+    jobs: jobSummaries,
 }));
 
 export default router.toHandler();
-export { triggers };
+export { jobs, triggers };

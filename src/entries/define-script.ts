@@ -1,5 +1,5 @@
 import { defineScript, ValidationError } from "@cogover/sdk";
-import type { SandboxHandler, ScriptContext } from "@cogover/sdk";
+import type { InvocationContext, SandboxHandler, ScriptContext } from "@cogover/sdk";
 
 /**
  * Alternative entry point for a project with a single endpoint: `defineScript` instead of a router.
@@ -18,7 +18,7 @@ interface Input {
 interface Output {
     readonly greeting: string;
     readonly method: string;
-    readonly identity: "user" | "system";
+    readonly identity: InvocationContext["identity"];
 }
 
 const handler: SandboxHandler = defineScript<Input, Output>(({ request, invocation, log }: ScriptContext<Input>) => {

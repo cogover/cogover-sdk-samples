@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after, before, describe } from "node:test";
 import type { InvocationContext } from "@cogover/sdk";
-import handler, { triggers } from "../src/main.js";
+import handler, { jobs, triggers } from "../src/main.js";
 import { samples } from "../src/samples/index.js";
 import { startLocalServer, type StartedLocalServer } from "./local-server.js";
 
@@ -29,7 +29,7 @@ describe("sample catalog", () => {
     test("every sample documents SDK APIs, its file and a curl", () => {
         for (const sample of samples) {
             assert.ok(sample.sdk.length > 0, `${sample.id} lists no SDK API`);
-            assert.match(sample.file, /^src\/samples\/\d\d-[a-z-]+\/[a-z-]+\.ts$/, `${sample.id} has an unexpected file path`);
+            assert.match(sample.file, /^src\/samples\/\d\d-[a-z-]+\/[a-z0-9-]+\.ts$/, `${sample.id} has an unexpected file path`);
             assert.ok(sample.curl.includes("$BASE"), `${sample.id} curl must use $BASE`);
             assert.ok(sample.summary.length > 20, `${sample.id} summary is too short`);
             assert.ok(sample.path.startsWith("/") && sample.path !== "/", `${sample.id} path must be a child route`);
@@ -40,6 +40,16 @@ describe("sample catalog", () => {
         const keys = triggers.map(trigger => trigger.key);
         assert.equal(new Set(keys).size, keys.length);
         for (const trigger of triggers) assert.equal(trigger.config.object, "sample_order");
+    });
+
+    test("jobs have unique keys and normalized manifests", () => {
+        const keys = jobs.map(job => job.key);
+        assert.equal(new Set(keys).size, keys.length);
+        const scheduled = jobs.find(job => job.key === "sample_cancel_stale_orders");
+        assert.deepEqual(scheduled?.config.schedule, { cron: "0 2 * * *", timezone: "Asia/Ho_Chi_Minh" });
+        const enqueued = jobs.find(job => job.key === "sample_recount_orders");
+        assert.equal(enqueued?.config.maxAttempts, 3);
+        assert.equal(enqueued?.config.schedule, undefined);
     });
 });
 
@@ -84,6 +94,7 @@ describe("routes that need no Development Session", () => {
         assert.equal(listed[0]?.id, "router.hello");
         assert.equal(listed[0]?.register, undefined, "functions must not leak into the catalog");
         assert.deepEqual((catalog.triggers as { key: string }[]).map(trigger => trigger.key), triggers.map(trigger => trigger.key));
+        assert.deepEqual((catalog.jobs as { key: string }[]).map(job => job.key), jobs.map(job => job.key));
     });
 
     test("router samples", async () => {
@@ -173,6 +184,23 @@ describe("routes that need no Development Session", () => {
         }
         const unknown = await fetch(`${base}/errors/mapping/unknown-name`);
         assert.equal(unknown.status, 400);
+    });
+
+    test("inbound webhook routes refuse non-inbound callers", async () => {
+        const ping = await post("/hooks/ping", { hello: "webhook" });
+        assert.equal(ping.status, 403);
+        assert.equal((await json(ping)).identity, "user");
+        const events = await post("/hooks/order-events", { id: "evt-1", type: "order.paid", orderId: "ORD-1" });
+        assert.equal(events.status, 403);
+    });
+
+    test("constant-time comparison runs without a capability call", async () => {
+        const same = await json(await post("/crypto/timing-safe-equal", { a: "token-1", b: "token-1" }));
+        assert.equal(same.equal, true);
+        const different = await json(await post("/crypto/timing-safe-equal", { a: "token-1", b: "token-2" }));
+        assert.equal(different.equal, false);
+        const lengths = await json(await post("/crypto/timing-safe-equal", { a: "short", b: "longer value" }));
+        assert.equal(lengths.equal, false);
     });
 
     test("legacy sample and unknown routes", async () => {

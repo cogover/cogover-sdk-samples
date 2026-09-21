@@ -44,3 +44,11 @@ The Project's approved identity policy decides what the samples may do:
   identity samples answer with `IDENTITY_NOT_GRANTED` instead of failing.
 - Outbound `fetch` needs the destinations `registry.npmjs.org` and `httpbin.org` to be allowed.
 - Push messages must be enabled for the deployment; otherwise every push sample throws `PUSH_DISABLED`.
+- Background jobs run only for the active published version: `POST /jobs/enqueue` answers `r: 1005`
+  until this project is published and activated. The scheduled job `sample_cancel_stale_orders`
+  then runs nightly as the system identity and needs `allowInternalSystem: true`.
+- Secrets: create `sample_erp_token` and `sample_webhook_secret` (readable) and the credential
+  `sample_httpbin` (BEARER, allowed host `httpbin.org`) with `cogover-dev secrets set`. A local
+  Development Session uses them only when its administrator allowed secrets.
+- Inbound webhooks: `cogover-dev inbound create <name>` prints the webhook URL; the `/hooks/` routes
+  answer 403 to any other caller.

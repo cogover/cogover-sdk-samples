@@ -49,6 +49,7 @@ import locksAcquireRelease from "./09-locks/acquire-release.js";
 import fetchGetJson from "./10-fetch/get-json.js";
 import fetchPostJson from "./10-fetch/post-json.js";
 import fetchErrorHandling from "./10-fetch/error-handling.js";
+import fetchCredential from "./10-fetch/credential.js";
 
 import schemaObjectMetadata from "./11-schema/object-metadata.js";
 
@@ -64,6 +65,20 @@ import pushToast from "./14-push/toast.js";
 import pushMessage from "./14-push/message.js";
 
 import legacyCreateGreeting from "./15-legacy/create-greeting.js";
+
+import jobsEnqueue from "./16-jobs/enqueue.js";
+import jobsEnqueueDelayed from "./16-jobs/enqueue-delayed.js";
+
+import secretsGet from "./17-secrets/get.js";
+
+import cryptoSha256 from "./18-crypto/sha256.js";
+import cryptoHmac from "./18-crypto/hmac.js";
+import cryptoVerifySignature from "./18-crypto/verify-signature.js";
+import cryptoTimingSafeEqual from "./18-crypto/timing-safe-equal.js";
+import cryptoRandom from "./18-crypto/random.js";
+
+import inboundHooksPing from "./19-inbound/hooks-ping.js";
+import inboundHooksOrderEvents from "./19-inbound/hooks-order-events.js";
 
 /**
  * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
@@ -119,6 +134,7 @@ export const samples: readonly Sample[] = [
     fetchGetJson,
     fetchPostJson,
     fetchErrorHandling,
+    fetchCredential,
 
     schemaObjectMetadata,
 
@@ -134,4 +150,18 @@ export const samples: readonly Sample[] = [
     pushMessage,
 
     legacyCreateGreeting,
+
+    jobsEnqueue,
+    jobsEnqueueDelayed,
+
+    secretsGet,
+
+    cryptoSha256,
+    cryptoHmac,
+    cryptoVerifySignature,
+    cryptoTimingSafeEqual,
+    cryptoRandom,
+
+    inboundHooksPing,
+    inboundHooksOrderEvents,
 ];
