@@ -12,10 +12,10 @@ interface Input {
 }
 
 /**
- * Deletes records by ID. `deleted` lists what was removed; `notDeleted` lists IDs the caller could
- * not delete, for example records refused by a before-change trigger such as
- * `src/triggers/before-change-block-delete.ts`. An ID that does not exist may appear in neither
- * list, so compare `deleted` with the request instead of relying on `notDeleted` alone.
+ * Deletes records by ID. `notDeleted` lists IDs the caller could not delete, for example records
+ * refused by a before-change trigger such as `src/triggers/before-change-block-delete.ts`. Cogover
+ * does not verify unknown IDs: an ID that does not exist may be reported in `deleted` or in neither
+ * list, so read the records back when it matters instead of relying on `notDeleted` alone.
  * `object` defaults to `sample_order`; pass `sample_customer` to clean up customers.
  */
 export default defineSample<Input>({
