@@ -1,0 +1,31 @@
+{
+    "name": "cogover-sdk-samples",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Runnable samples for every public API of @cogover/sdk: one file per HTTP route, plus record triggers.",
+    "license": "MIT",
+    "type": "module",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "prestart": "npm run typecheck",
+        "start": "node --import tsx local/cli.ts --entry ./src/main.ts",
+        "dev": "nodemon --watch src --watch local --ext ts --signal SIGTERM --exec \"./node_modules/.bin/tsc -p tsconfig.json --noEmit && node --import tsx local/cli.ts --entry ./src/main.ts || exit 1\"",
+        "test": "node --import tsx --test local/*.test.ts",
+        "build": "npm run typecheck",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "catalog": "node --import tsx scripts/print-catalog.ts",
+        "coverage": "node scripts/check-coverage.mjs",
+        "check": "npm run typecheck && npm test && npm run coverage"
+    },
+    "dependencies": {
+        "@cogover/sdk": "0.7.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "nodemon": "^3.1.14",
+        "tsx": "^4.20.0",
+        "typescript": "^5.9.0"
+    }
+}
