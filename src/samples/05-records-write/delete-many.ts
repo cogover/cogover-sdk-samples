@@ -1,4 +1,4 @@
-import { ValidationError } from "@cogover/sdk";
+import { CogoverApiError, ValidationError } from "@cogover/sdk";
 import type { CogoverRecordId, DeleteResult } from "@cogover/sdk";
 import { defineSample } from "../../sample.js";
 
@@ -12,18 +12,19 @@ interface Input {
 }
 
 /**
- * Deletes records by ID. `notDeleted` lists IDs the caller could not delete, for example records
- * refused by a before-change trigger such as `src/triggers/before-change-block-delete.ts`. Cogover
- * does not verify unknown IDs: an ID that does not exist may be reported in `deleted` or in neither
- * list, so read the records back when it matters instead of relying on `notDeleted` alone.
- * `object` defaults to `sample_order`; pass `sample_customer` to clean up customers.
+ * Deletes records by ID. `notDeleted` lists IDs Cogover reports as not deleted. A rejection by a
+ * before-change trigger such as `src/triggers/before-change-block-delete.ts` is different: the whole
+ * call throws `CogoverApiError` whose `r` is 70 (`BEFORE_CHANGE_TRIGGER_REJECTED`), handled below.
+ * Cogover does not verify unknown IDs: an ID that does not exist may be reported in `deleted` or in
+ * neither list, so read the records back when it matters. `object` defaults to `sample_order`; pass
+ * `sample_customer` to clean up customers.
  */
 export default defineSample<Input>({
     id: "records.delete-many",
     method: "DELETE",
     path: "/records/delete-many",
     summary: "records.deleteMany(ids): delete orders (or customers with object: \"sample_customer\"); compare deleted with the request.",
-    sdk: ["records.deleteMany", "DeleteResult"],
+    sdk: ["records.deleteMany", "DeleteResult", "CogoverApiError.r"],
     file: "src/samples/05-records-write/delete-many.ts",
     curl: `curl -s -X DELETE "$BASE/records/delete-many" -H "Content-Type: application/json" --data '{"ids":["<recordId1>","<recordId2>"],"object":"sample_order"}'`,
     handler: async ({ request, data, log }) => {
@@ -35,7 +36,15 @@ export default defineSample<Input>({
             throw new ValidationError(`object must be one of ${OBJECTS.join(", ")}`);
         })();
 
-        const result: DeleteResult = await data.object(target).records.deleteMany(ids as CogoverRecordId[]);
+        let result: DeleteResult;
+        try {
+            result = await data.object(target).records.deleteMany(ids as CogoverRecordId[]);
+        } catch (error) {
+            if (error instanceof CogoverApiError && error.r === 70) {
+                return { r: 1008, msg: "A before-change trigger refused the deletion; nothing was deleted.", object: target, code: error.code, serverResult: error.r };
+            }
+            throw error;
+        }
         const reported = new Set<string>([...result.deleted, ...result.notDeleted]);
         const unknown = ids.filter(id => !reported.has(id));
         if (result.notDeleted.length > 0) log.warn("Some records were not deleted", { object: target, ids: result.notDeleted });

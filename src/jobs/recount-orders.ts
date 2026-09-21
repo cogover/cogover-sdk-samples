@@ -24,6 +24,8 @@ export interface OrderCountSummary {
  * and is part of the idempotency key of the follow-up enqueue. The configuration and handler are
  * declared separately to show their types; `defineJob({...}, handler)` infers the same.
  */
+const PAGE_SIZE = 200;
+
 const config: JobConfig = {
     key: "sample_recount_orders",
     name: "Sample: count orders page by page",
@@ -42,7 +44,7 @@ const handler: JobHandler<RecountPayload> = async ({ job, payload, data, state, 
         listed = await orders.records.list({
             fields: ["name"],
             orderBy: [orders.fields.created.asc()],
-            limit: 200,
+            limit: PAGE_SIZE,
             ...(payload?.cursor === undefined ? {} : { cursor: payload.cursor }),
         });
     } catch (error) {
@@ -52,7 +54,8 @@ const handler: JobHandler<RecountPayload> = async ({ job, payload, data, state, 
     }
 
     const total = counted + listed.items.length;
-    if (listed.nextCursor !== undefined && listed.items.length > 0) {
+    // Cogover may return a cursor with the last page too, so a short page ends the walk.
+    if (listed.nextCursor !== undefined && listed.items.length === PAGE_SIZE) {
         const next: RecountPayload = { page: page + 1, counted: total, cursor: listed.nextCursor };
         // The same run never enqueues the same page twice, even when this attempt is repeated.
         await jobs.enqueue(info.key, next, { idempotencyKey: `${info.id}:page:${page + 1}` });
