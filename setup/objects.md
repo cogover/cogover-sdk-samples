@@ -48,7 +48,11 @@ The Project's approved identity policy decides what the samples may do:
   until this project is published and activated. The scheduled job `sample_cancel_stale_orders`
   then runs nightly as the system identity and needs `allowInternalSystem: true`.
 - Secrets: create `sample_erp_token` and `sample_webhook_secret` (readable) and the credential
-  `sample_httpbin` (BEARER, allowed host `httpbin.org`) with `cogover-dev secrets set`. A local
-  Development Session uses them only when its administrator allowed secrets.
+  `sample_httpbin` (BEARER, allowed host `httpbin.org`) with `cogover-dev secrets set`. The
+  encryption and signature samples also need `sample_aes_key` (base64 of 32 random bytes),
+  `sample_rsa_private_key` and `sample_rsa_public_key` (an RSA 2048-bit PEM key pair), and
+  `sample_signing_key` and `sample_signing_public_key` (an EC P-256 PEM key pair); the README shows
+  the OpenSSL commands. A local Development Session uses secrets only when its administrator allowed
+  them.
 - Inbound webhooks: `cogover-dev inbound create <name>` prints the webhook URL; the `/hooks/` routes
   answer 403 to any other caller.

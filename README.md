@@ -239,6 +239,13 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `POST /crypto/verify` | [18-crypto/verify-signature.ts](src/samples/18-crypto/verify-signature.ts) | `crypto.hmacSha256`, `crypto.timingSafeEqual` | Recompute an HMAC and compare it with crypto.timingSafeEqual() to verify a signature. |
 | `POST /crypto/timing-safe-equal` | [18-crypto/timing-safe-equal.ts](src/samples/18-crypto/timing-safe-equal.ts) | `crypto.timingSafeEqual` | crypto.timingSafeEqual(a, b): compare tokens or signatures in constant time. |
 | `GET /crypto/random` | [18-crypto/random.ts](src/samples/18-crypto/random.ts) | `crypto.randomBytes`, `crypto.randomUUID` | crypto.randomBytes(length) and crypto.randomUUID(): secure tokens, nonces and IDs. |
+| `POST /crypto/aes/encrypt` | [18-crypto/aes-encrypt.ts](src/samples/18-crypto/aes-encrypt.ts) | `crypto.aesEncrypt`, `AesKey`, `AesMode`, `AesEncryptOptions`, `AesEncryptResult`, `BinaryEncoding` | crypto.aesEncrypt(key \| { secret }, data, options): AES-GCM or AES-CBC with a new random IV. |
+| `POST /crypto/aes/decrypt` | [18-crypto/aes-decrypt.ts](src/samples/18-crypto/aes-decrypt.ts) | `crypto.aesDecrypt`, `AesDecryptOptions`, `DecryptOutput` | crypto.aesDecrypt(key \| { secret }, ciphertext, { iv, tag?, aad?, output? }): decrypt and authenticate. |
+| `POST /crypto/rsa/encrypt` | [18-crypto/rsa-encrypt.ts](src/samples/18-crypto/rsa-encrypt.ts) | `crypto.rsaEncrypt`, `AsymmetricKey`, `RsaEncryptOptions`, `RsaPadding` | crypto.rsaEncrypt(publicKey, data, { padding? }): encrypt a small value with an RSA public key. |
+| `POST /crypto/rsa/decrypt` | [18-crypto/rsa-decrypt.ts](src/samples/18-crypto/rsa-decrypt.ts) | `crypto.rsaDecrypt`, `SecretKeyReference`, `RsaDecryptOptions`, `DecryptOutput` | crypto.rsaDecrypt({ secret }, ciphertext, { padding?, output? }): decrypt with a private key kept in a secret. |
+| `POST /crypto/sign` | [18-crypto/sign.ts](src/samples/18-crypto/sign.ts) | `crypto.sign`, `SignatureAlgorithm`, `SignatureOptions` | crypto.sign(algorithm, { secret }, data, options): RSA, RSA-PSS or ECDSA signature with a private key kept in a secret. |
+| `POST /crypto/verify-public-key` | [18-crypto/verify-public-key.ts](src/samples/18-crypto/verify-public-key.ts) | `crypto.verify`, `AsymmetricKey`, `SignatureAlgorithm`, `SignatureOptions` | crypto.verify(algorithm, publicKey, data, signature, options): check an RSA or ECDSA signature. |
+| `POST /crypto/jwt/verify` | [18-crypto/jwt-verify.ts](src/samples/18-crypto/jwt-verify.ts) | `crypto.verify`, `AsymmetricKey`, `SignatureAlgorithm`, `SignatureOptions` | Verify an RS256, PS256 or ES256 JWT with crypto.verify() and base64url signatures, then check exp and nbf. |
 
 ### Inbound webhooks
 
@@ -263,7 +270,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_recount_orders` | on enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Total: 61 routes, 4 record triggers and 2 background jobs.
+Total: 68 routes, 4 record triggers and 2 background jobs.
 <!-- catalog:end -->
 
 ## Record triggers on the local server
@@ -306,7 +313,24 @@ explicit `r`/`msg` object instead of failing when the configuration is missing:
   ```bash
   cogover-dev secrets set sample_erp_token
   cogover-dev secrets set sample_webhook_secret
-  cogover-dev secrets set sample_httpbin --kind BEARER --allowed-hosts httpbin.org
+  cogover-dev secrets set sample_httpbin --kind bearer --allowed-host httpbin.org
+  ```
+
+  The encryption and signature samples (`/crypto/aes/*`, `/crypto/rsa/*`, `/crypto/sign`,
+  `/crypto/verify-public-key`, `/crypto/jwt/verify`) keep their keys in secrets. Generate test keys
+  with OpenSSL and store the PEM files; delete the local files afterwards:
+
+  ```bash
+  openssl rand -base64 32 | cogover-dev secrets set sample_aes_key --value-stdin
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out sample-rsa.pem
+  openssl pkey -in sample-rsa.pem -pubout -out sample-rsa.pub.pem
+  cogover-dev secrets set sample_rsa_private_key --value-file sample-rsa.pem
+  cogover-dev secrets set sample_rsa_public_key --value-file sample-rsa.pub.pem
+  openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out sample-ec.pem
+  openssl pkey -in sample-ec.pem -pubout -out sample-ec.pub.pem
+  cogover-dev secrets set sample_signing_key --value-file sample-ec.pem
+  cogover-dev secrets set sample_signing_public_key --value-file sample-ec.pub.pem
+  rm sample-rsa.pem sample-rsa.pub.pem sample-ec.pem sample-ec.pub.pem
   ```
 
   A local Development Session may use secrets only when its administrator allowed it; otherwise
@@ -322,7 +346,8 @@ explicit `r`/`msg` object instead of failing when the configuration is missing:
   ```
 
 `crypto` hashing, HMAC with an explicit key, and random values work in every context, including the
-local server.
+local server. AES encryption also works without secrets when the request passes a `key`; a failed
+decryption answers `r: 1011` with code `DECRYPTION_FAILED`.
 
 ## Single-endpoint entry point
 

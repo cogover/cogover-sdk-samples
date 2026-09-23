@@ -237,6 +237,13 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `POST /crypto/verify` | [18-crypto/verify-signature.ts](src/samples/18-crypto/verify-signature.ts) | `crypto.hmacSha256`, `crypto.timingSafeEqual` | Recompute an HMAC and compare it with crypto.timingSafeEqual() to verify a signature. |
 | `POST /crypto/timing-safe-equal` | [18-crypto/timing-safe-equal.ts](src/samples/18-crypto/timing-safe-equal.ts) | `crypto.timingSafeEqual` | crypto.timingSafeEqual(a, b): compare tokens or signatures in constant time. |
 | `GET /crypto/random` | [18-crypto/random.ts](src/samples/18-crypto/random.ts) | `crypto.randomBytes`, `crypto.randomUUID` | crypto.randomBytes(length) and crypto.randomUUID(): secure tokens, nonces and IDs. |
+| `POST /crypto/aes/encrypt` | [18-crypto/aes-encrypt.ts](src/samples/18-crypto/aes-encrypt.ts) | `crypto.aesEncrypt`, `AesKey`, `AesMode`, `AesEncryptOptions`, `AesEncryptResult`, `BinaryEncoding` | crypto.aesEncrypt(key \| { secret }, data, options): AES-GCM or AES-CBC with a new random IV. |
+| `POST /crypto/aes/decrypt` | [18-crypto/aes-decrypt.ts](src/samples/18-crypto/aes-decrypt.ts) | `crypto.aesDecrypt`, `AesDecryptOptions`, `DecryptOutput` | crypto.aesDecrypt(key \| { secret }, ciphertext, { iv, tag?, aad?, output? }): decrypt and authenticate. |
+| `POST /crypto/rsa/encrypt` | [18-crypto/rsa-encrypt.ts](src/samples/18-crypto/rsa-encrypt.ts) | `crypto.rsaEncrypt`, `AsymmetricKey`, `RsaEncryptOptions`, `RsaPadding` | crypto.rsaEncrypt(publicKey, data, { padding? }): encrypt a small value with an RSA public key. |
+| `POST /crypto/rsa/decrypt` | [18-crypto/rsa-decrypt.ts](src/samples/18-crypto/rsa-decrypt.ts) | `crypto.rsaDecrypt`, `SecretKeyReference`, `RsaDecryptOptions`, `DecryptOutput` | crypto.rsaDecrypt({ secret }, ciphertext, { padding?, output? }): decrypt with a private key kept in a secret. |
+| `POST /crypto/sign` | [18-crypto/sign.ts](src/samples/18-crypto/sign.ts) | `crypto.sign`, `SignatureAlgorithm`, `SignatureOptions` | crypto.sign(algorithm, { secret }, data, options): RSA, RSA-PSS or ECDSA signature with a private key kept in a secret. |
+| `POST /crypto/verify-public-key` | [18-crypto/verify-public-key.ts](src/samples/18-crypto/verify-public-key.ts) | `crypto.verify`, `AsymmetricKey`, `SignatureAlgorithm`, `SignatureOptions` | crypto.verify(algorithm, publicKey, data, signature, options): check an RSA or ECDSA signature. |
+| `POST /crypto/jwt/verify` | [18-crypto/jwt-verify.ts](src/samples/18-crypto/jwt-verify.ts) | `crypto.verify`, `AsymmetricKey`, `SignatureAlgorithm`, `SignatureOptions` | Verify an RS256, PS256 or ES256 JWT with crypto.verify() and base64url signatures, then check exp and nbf. |
 
 ### Inbound webhook
 
@@ -261,7 +268,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_recount_orders` | theo enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Tổng cộng: 61 route, 4 record trigger và 2 background job.
+Tổng cộng: 68 route, 4 record trigger và 2 background job.
 <!-- catalog:end -->
 
 ## Chạy record trigger trên local server
@@ -303,7 +310,24 @@ trả về object `r`/`msg` giải thích thay vì lỗi:
   ```bash
   cogover-dev secrets set sample_erp_token
   cogover-dev secrets set sample_webhook_secret
-  cogover-dev secrets set sample_httpbin --kind BEARER --allowed-hosts httpbin.org
+  cogover-dev secrets set sample_httpbin --kind bearer --allowed-host httpbin.org
+  ```
+
+  Các sample mã hoá và chữ ký (`/crypto/aes/*`, `/crypto/rsa/*`, `/crypto/sign`,
+  `/crypto/verify-public-key`, `/crypto/jwt/verify`) giữ key trong secret. Tạo key thử nghiệm bằng
+  OpenSSL, lưu file PEM thành secret rồi xoá các file local:
+
+  ```bash
+  openssl rand -base64 32 | cogover-dev secrets set sample_aes_key --value-stdin
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out sample-rsa.pem
+  openssl pkey -in sample-rsa.pem -pubout -out sample-rsa.pub.pem
+  cogover-dev secrets set sample_rsa_private_key --value-file sample-rsa.pem
+  cogover-dev secrets set sample_rsa_public_key --value-file sample-rsa.pub.pem
+  openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out sample-ec.pem
+  openssl pkey -in sample-ec.pem -pubout -out sample-ec.pub.pem
+  cogover-dev secrets set sample_signing_key --value-file sample-ec.pem
+  cogover-dev secrets set sample_signing_public_key --value-file sample-ec.pub.pem
+  rm sample-rsa.pem sample-rsa.pub.pem sample-ec.pem sample-ec.pub.pem
   ```
 
   Development Session local chỉ dùng được secret khi quản trị viên cho phép; nếu không, sample trả
@@ -319,7 +343,8 @@ trả về object `r`/`msg` giải thích thay vì lỗi:
   ```
 
 Băm, HMAC với key tường minh và giá trị ngẫu nhiên của `crypto` chạy được ở mọi ngữ cảnh, kể cả
-local server.
+local server. Mã hoá AES cũng chạy được mà không cần secret khi request truyền `key`; giải mã thất
+bại trả về `r: 1011` với code `DECRYPTION_FAILED`.
 
 ## Entry point một endpoint
 

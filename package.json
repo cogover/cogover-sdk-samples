@@ -20,7 +20,7 @@
         "check": "npm run typecheck && npm test && npm run coverage"
     },
     "dependencies": {
-        "@cogover/sdk": "0.8.0"
+        "@cogover/sdk": "0.9.0"
     },
     "devDependencies": {
         "@types/node": "^20.0.0",

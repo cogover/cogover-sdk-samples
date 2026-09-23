@@ -76,6 +76,13 @@ import cryptoHmac from "./18-crypto/hmac.js";
 import cryptoVerifySignature from "./18-crypto/verify-signature.js";
 import cryptoTimingSafeEqual from "./18-crypto/timing-safe-equal.js";
 import cryptoRandom from "./18-crypto/random.js";
+import cryptoAesEncrypt from "./18-crypto/aes-encrypt.js";
+import cryptoAesDecrypt from "./18-crypto/aes-decrypt.js";
+import cryptoRsaEncrypt from "./18-crypto/rsa-encrypt.js";
+import cryptoRsaDecrypt from "./18-crypto/rsa-decrypt.js";
+import cryptoSign from "./18-crypto/sign.js";
+import cryptoVerifyPublicKey from "./18-crypto/verify-public-key.js";
+import cryptoJwtVerify from "./18-crypto/jwt-verify.js";
 
 import inboundHooksPing from "./19-inbound/hooks-ping.js";
 import inboundHooksOrderEvents from "./19-inbound/hooks-order-events.js";
@@ -161,6 +168,13 @@ export const samples: readonly Sample[] = [
     cryptoVerifySignature,
     cryptoTimingSafeEqual,
     cryptoRandom,
+    cryptoAesEncrypt,
+    cryptoAesDecrypt,
+    cryptoRsaEncrypt,
+    cryptoRsaDecrypt,
+    cryptoSign,
+    cryptoVerifyPublicKey,
+    cryptoJwtVerify,
 
     inboundHooksPing,
     inboundHooksOrderEvents,
