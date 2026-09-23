@@ -116,7 +116,8 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 
 | Route | File | SDK APIs | Summary |
 |---|---|---|---|
-| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `InboundInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership` | context.invocation: who is calling (user, system or inbound webhook) and which workspace, without a data request. |
+| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `InboundInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership`, `CurrentWorkspaceRole` | context.invocation: who is calling (user, system or inbound webhook) and which workspace, without a data request. |
+| `GET /invocation/role-check` | [03-invocation/role-check.ts](src/samples/03-invocation/role-check.ts) | `CurrentWorkspaceMembership.isSuperAdmin`, `CurrentWorkspaceMembership.roles`, `CurrentWorkspaceRole` | membership.isSuperAdmin and membership.roles: allow an action for Super Admins or holders of one role, compared by id. |
 
 ### Records: read
 
@@ -270,7 +271,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_recount_orders` | on enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Total: 68 routes, 4 record triggers and 2 background jobs.
+Total: 69 routes, 4 record triggers and 2 background jobs.
 <!-- catalog:end -->
 
 ## Record triggers on the local server

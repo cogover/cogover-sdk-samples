@@ -13,7 +13,14 @@ import { startLocalServer, type StartedLocalServer } from "./local-server.js";
 const invocation: InvocationContext = Object.freeze({
     identity: "user",
     workspace: { id: "WS1", name: "Sample Workspace", language: "en" },
-    user: { accountId: "AC1", email: "ada@example.com", firstName: "Ada", lastName: "Lovelace", membership: { personnelId: "PER1" } },
+    user: {
+        accountId: "AC1", email: "ada@example.com", firstName: "Ada", lastName: "Lovelace",
+        membership: {
+            personnelId: "PER1",
+            isSuperAdmin: false,
+            roles: [{ id: "RO-APPROVER", name: "Order approver" }, { id: "RO-SALES", name: "Sales" }],
+        },
+    },
 });
 
 describe("sample catalog", () => {
@@ -165,7 +172,38 @@ describe("routes that need no Development Session", () => {
         const snapshot = await json(await fetch(`${base}/invocation`));
         assert.equal(snapshot.identity, "user");
         assert.deepEqual(snapshot.workspace, { id: "WS1", name: "Sample Workspace", domain: null, language: "en", timezone: null });
-        assert.deepEqual(snapshot.user, { accountId: "AC1", email: "ada@example.com", fullName: "Ada Lovelace", personnelId: "PER1", language: null });
+        assert.deepEqual(snapshot.user, {
+            accountId: "AC1", email: "ada@example.com", fullName: "Ada Lovelace", personnelId: "PER1", language: null,
+            isSuperAdmin: false, roles: [{ id: "RO-APPROVER", name: "Order approver" }, { id: "RO-SALES", name: "Sales" }],
+        });
+    });
+
+    test("role-check sample compares role ids and lets Super Admins through", async () => {
+        const holder = await json(await fetch(`${base}/invocation/role-check?roleId=RO-APPROVER`));
+        assert.deepEqual(holder, {
+            allowed: true, reason: 'Holds role "Order approver"', roleId: "RO-APPROVER",
+            isSuperAdmin: false, roles: ["RO-APPROVER", "RO-SALES"],
+        });
+        const other = await json(await fetch(`${base}/invocation/role-check?roleId=RO-FINANCE`));
+        assert.equal(other.allowed, false);
+        assert.equal(other.reason, "Role not held");
+        // Names are not identifiers: a role name never matches.
+        assert.equal((await json(await fetch(`${base}/invocation/role-check?roleId=Sales`))).allowed, false);
+        const missing = await fetch(`${base}/invocation/role-check`);
+        assert.equal(missing.status, 400);
+        assert.equal((await missing.json() as { code: string }).code, "ROLE_ID_REQUIRED");
+
+        const admin = await startLocalServer({
+            handler, triggers, projectSlug: "sdk_samples", port: 0, readRecord: async () => null,
+            invocation: { ...invocation, user: { accountId: "AC2", membership: { isSuperAdmin: true, roles: [] } } },
+        });
+        try {
+            const result = await json(await fetch(`${admin.url}/invocation/role-check?roleId=RO-FINANCE`));
+            assert.equal(result.allowed, true);
+            assert.equal(result.reason, "Super Admin");
+        } finally {
+            await admin.close();
+        }
     });
 
     test("error samples map to HTTP statuses", async () => {

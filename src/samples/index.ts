@@ -14,6 +14,7 @@ import responseEmpty from "./02-response/empty.js";
 import responseRedirect from "./02-response/redirect.js";
 
 import invocationSnapshot from "./03-invocation/invocation.js";
+import invocationRoleCheck from "./03-invocation/role-check.js";
 
 import recordsGet from "./04-records-read/get.js";
 import recordsGetMany from "./04-records-read/get-many.js";
@@ -106,6 +107,7 @@ export const samples: readonly Sample[] = [
     responseRedirect,
 
     invocationSnapshot,
+    invocationRoleCheck,
 
     recordsGet,
     recordsGetMany,

@@ -114,7 +114,8 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 
 | Route | File | SDK API | Tóm tắt |
 |---|---|---|---|
-| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `InboundInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership` | context.invocation: who is calling (user, system or inbound webhook) and which workspace, without a data request. |
+| `GET /invocation` | [03-invocation/invocation.ts](src/samples/03-invocation/invocation.ts) | `context.invocation`, `InvocationContext`, `UserInvocationContext`, `SystemInvocationContext`, `InboundInvocationContext`, `CurrentWorkspace`, `CurrentUser`, `CurrentWorkspaceMembership`, `CurrentWorkspaceRole` | context.invocation: who is calling (user, system or inbound webhook) and which workspace, without a data request. |
+| `GET /invocation/role-check` | [03-invocation/role-check.ts](src/samples/03-invocation/role-check.ts) | `CurrentWorkspaceMembership.isSuperAdmin`, `CurrentWorkspaceMembership.roles`, `CurrentWorkspaceRole` | membership.isSuperAdmin and membership.roles: allow an action for Super Admins or holders of one role, compared by id. |
 
 ### Record: đọc
 
@@ -268,7 +269,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_recount_orders` | theo enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Tổng cộng: 68 route, 4 record trigger và 2 background job.
+Tổng cộng: 69 route, 4 record trigger và 2 background job.
 <!-- catalog:end -->
 
 ## Chạy record trigger trên local server
