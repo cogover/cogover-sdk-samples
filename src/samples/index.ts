@@ -88,6 +88,14 @@ import cryptoJwtVerify from "./18-crypto/jwt-verify.js";
 import inboundHooksPing from "./19-inbound/hooks-ping.js";
 import inboundHooksOrderEvents from "./19-inbound/hooks-order-events.js";
 
+import orgMe from "./20-org/me.js";
+import orgPersonnelMany from "./20-org/personnel-many.js";
+import orgDepartmentTree from "./20-org/department-tree.js";
+import orgDepartmentMembers from "./20-org/department-members.js";
+import orgPositions from "./20-org/positions.js";
+import orgManagerChain from "./20-org/manager-chain.js";
+import orgApprovalCheck from "./20-org/approval-check.js";
+
 /**
  * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
  * self-contained bundle and does not allow dynamic imports, so a new sample is added here by hand.
@@ -180,4 +188,12 @@ export const samples: readonly Sample[] = [
 
     inboundHooksPing,
     inboundHooksOrderEvents,
+
+    orgMe,
+    orgPersonnelMany,
+    orgDepartmentTree,
+    orgDepartmentMembers,
+    orgPositions,
+    orgManagerChain,
+    orgApprovalCheck,
 ];

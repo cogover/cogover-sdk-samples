@@ -255,6 +255,18 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `POST /hooks/ping` | [19-inbound/hooks-ping.ts](src/samples/19-inbound/hooks-ping.ts) | `InboundInvocationContext`, `invocation.inbound`, `request.rawBody`, `request.contentType` | A webhook route under /hooks/: accept only inbound calls and echo invocation.inbound and the raw body. |
 | `POST /hooks/order-events` | [19-inbound/hooks-order-events.ts](src/samples/19-inbound/hooks-order-events.ts) | `invocation.identity`, `request.rawBody`, `crypto.hmacSha256`, `crypto.timingSafeEqual`, `jobs.enqueue` | Webhook receiver: verify an HMAC signature over request.rawBody with a secret, then enqueue a job keyed by the event ID. |
 
+### Organization structure
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `GET /org/me` | [20-org/me.ts](src/samples/20-org/me.ts) | `org.me`, `OrgApi`, `OrgPersonnel`, `OrgMembership`, `OrgPersonnelDisplay`, `OrgReadOptions` | org.me: the caller's departments, positions and manager level, with names when ?display=true. |
+| `GET /org/personnel` | [20-org/personnel-many.ts](src/samples/20-org/personnel-many.ts) | `org.personnel.getMany`, `OrgPersonnelApi`, `OrgGetManyResult` | org.personnel.getMany: names and departments of up to 200 personnel, with the IDs that are not active personnel. |
+| `GET /org/departments/tree` | [20-org/department-tree.ts](src/samples/20-org/department-tree.ts) | `org.departments.tree`, `OrgDepartmentsApi`, `OrgTreeOptions`, `OrgDepartmentNode`, `OrgNameDisplay` | org.departments.tree: the department tree with names, from every root or ?rootId=, limited by ?depth=. |
+| `GET /org/departments/:departmentId/members` | [20-org/department-members.ts](src/samples/20-org/department-members.ts) | `org.departments.members`, `org.departments.ancestors`, `OrgDepartmentMembersOptions`, `OrgPageOptions`, `OrgPage`, `OrgMember`, `OrgDepartment` | org.departments.members and ancestors: a page of members with names, the breadcrumb, and cursor paging. |
+| `GET /org/positions` | [20-org/positions.ts](src/samples/20-org/positions.ts) | `org.positions.list`, `org.positions.get`, `org.positions.members`, `OrgPositionsApi`, `OrgPosition`, `OrgPositionMembersOptions` | org.positions.list, get and members: the position catalog, where a position applies, and who holds it. |
+| `GET /org/personnel/:personnelId/managers` | [20-org/manager-chain.ts](src/samples/20-org/manager-chain.ts) | `org.personnel.managerChain`, `org.departments.managers`, `OrgPersonnelChainOptions`, `OrgManagerOptions`, `OrgManagerChain`, `OrgManagerTier` | org.personnel.managerChain and departments.managers: approvers nearest first, plus the heads of the start department. |
+| `POST /org/approval-check` | [20-org/approval-check.ts](src/samples/20-org/approval-check.ts) | `org.isManagerOf`, `org.isInDepartment`, `OrgIsManagerOfOptions`, `OrgIsInDepartmentOptions` | org.isManagerOf and org.isInDepartment: allow an approval for the owner's managers or a finance department. |
+
 ### Record triggers
 
 | Key | Timing | Operations | File |
@@ -271,7 +283,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_recount_orders` | on enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Total: 69 routes, 4 record triggers and 2 background jobs.
+Total: 76 routes, 4 record triggers and 2 background jobs.
 <!-- catalog:end -->
 
 ## Record triggers on the local server
