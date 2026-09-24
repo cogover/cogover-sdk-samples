@@ -17,7 +17,7 @@ so local development, testing and publishing work exactly as in the starter. It 
 
 - `src/samples/<area>/<name>.ts`: one sample per file, one route per sample, grouped by SDK area
   (router, response, records, filters, identity, state, locks, fetch, schema, logging, errors, push,
-  jobs, secrets, crypto, inbound webhooks).
+  jobs, secrets, crypto, inbound webhooks, organization, notifications, email).
 - `src/triggers/`: before-change and after-change record triggers on the demo Object `sample_order`.
 - `src/jobs/`: an enqueued background job and a scheduled one, declared with `defineJob`.
 - `GET /`: the catalog. It lists every sample with its route, the SDK APIs it shows, its source file
@@ -267,6 +267,21 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `GET /org/personnel/:personnelId/managers` | [20-org/manager-chain.ts](src/samples/20-org/manager-chain.ts) | `org.personnel.managerChain`, `org.departments.managers`, `OrgPersonnelChainOptions`, `OrgManagerOptions`, `OrgManagerChain`, `OrgManagerTier` | org.personnel.managerChain and departments.managers: approvers nearest first, plus the heads of the start department. |
 | `POST /org/approval-check` | [20-org/approval-check.ts](src/samples/20-org/approval-check.ts) | `org.isManagerOf`, `org.isInDepartment`, `OrgIsManagerOfOptions`, `OrgIsInDepartmentOptions` | org.isManagerOf and org.isInDepartment: allow an approval for the owner's managers or a finance department. |
 
+### Notifications
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `POST /notifications/send` | [21-notifications/send.ts](src/samples/21-notifications/send.ts) | `context.notifications`, `NotificationsApi`, `notifications.send`, `NotificationMessage`, `NotificationResult`, `NotificationContentType`, `NotificationDisplay` | notifications.send(message): notify people in their notification list, with an email copy per channel. |
+| `POST /notifications/order-approval/:orderId` | [21-notifications/order-approval.ts](src/samples/21-notifications/order-approval.ts) | `notifications.send`, `NotificationLink`, `NotificationLinkTarget`, `NotificationSender`, `idempotencyKey` | notifications.send with sender, link and idempotencyKey: ask approvers to review an order exactly once. |
+
+### Email
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `GET /email/senders` | [22-email/senders.ts](src/samples/22-email/senders.ts) | `context.email`, `EmailApi`, `email.senders`, `EmailSenderInfo`, `EmailSenderKind` | email.senders(): list the mailboxes the Project policy lets this execution send from. |
+| `POST /email/send` | [22-email/send.ts](src/samples/22-email/send.ts) | `email.send`, `EmailMessage`, `EmailSender`, `EmailRecipient`, `EmailSendResult`, `EmailDelivery`, `PermissionDeniedError` | email.send(message): send an email from a granted Workspace or personal mailbox. |
+| `POST /email/customers/:customerId` | [22-email/customer-email.ts](src/samples/22-email/customer-email.ts) | `email.send`, `EmailRecordLink`, `EmailAttachment`, `recordEmailFields`, `appendSignature` | email.send with record, recordEmailFields and attachments: email a customer and log it on the timeline. |
+
 ### Record triggers
 
 | Key | Timing | Operations | File |
@@ -283,7 +298,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_recount_orders` | on enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Total: 76 routes, 4 record triggers and 2 background jobs.
+Total: 81 routes, 4 record triggers and 2 background jobs.
 <!-- catalog:end -->
 
 ## Record triggers on the local server
@@ -362,6 +377,29 @@ explicit `r`/`msg` object instead of failing when the configuration is missing:
 local server. AES encryption also works without secrets when the request passes a `key`; a failed
 decryption answers `r: 1011` with code `DECRYPTION_FAILED`.
 
+## Notifications and email
+
+Both reach real people, so run them in a test Workspace and in a Development Session that allows
+writes. A read-only session and a before-change trigger refuse both; `GET /email/senders` only reads
+and works everywhere.
+
+- **Notifications** (`POST /notifications/send`, `POST /notifications/order-approval/:orderId`): the
+  Workspace needs its notification channels. Pass a channel record ID in `channel` to let the channel
+  decide which deliveries (in-app, web push, mobile push, email copy) are used; without it all of
+  them are. Personnel without a user account are returned in `skippedPersonnelIds`.
+- **Email** (`GET /email/senders`, `POST /email/send`, `POST /email/customers/:customerId`): add the
+  mailboxes to the `email` section of the Project identity policy and approve it for the version:
+
+  ```json
+  "email": { "workspaceMailboxIds": ["<mailboxId>"], "allowActorMailbox": true }
+  ```
+
+  `POST /email/send` sends directly from the mailbox. `POST /email/customers/:customerId` sends to the
+  customer's `email` field, logs the email on the customer's timeline and attaches the files of an
+  order (`orderId`). Success means Cogover accepted the email; a delivery failure later is not
+  reported back to the script. Both email routes and the approval notification use an
+  `idempotencyKey`, so repeating a call does not send twice.
+
 ## Single-endpoint entry point
 
 `src/entries/define-script.ts` shows `defineScript`, the entry style for a project with one
@@ -383,7 +421,7 @@ cogover-dev activate <version-id>
 
 Read this before publishing to a Workspace with real data: the write samples create, update and
 delete records of the demo Objects, `identity/as-system` reads without the caller's record
-permissions, the push samples notify real users, the triggers run for every write to
+permissions, the push, notification and email samples reach real people, the triggers run for every write to
 `sample_order`, and the scheduled job cancels stale `sample_order` records every night while the
 version is active. Publish to a test Workspace, or remove the samples you do not want from
 `src/samples/index.ts` and `src/triggers/index.ts`.

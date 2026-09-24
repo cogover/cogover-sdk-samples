@@ -56,3 +56,9 @@ The Project's approved identity policy decides what the samples may do:
   them.
 - Inbound webhooks: `cogover-dev inbound create <name>` prints the webhook URL; the `/hooks/` routes
   answer 403 to any other caller.
+- Notifications need the Workspace's notification channels (the `notification_channel` Object);
+  without them the notification samples answer `r: 1004` with resource `object`.
+- Email is sent only from mailboxes named in the `email` section of the approved identity policy,
+  for example `"email": { "workspaceMailboxIds": ["<mailboxId>"], "allowActorMailbox": true }`.
+  `GET /email/senders` lists what the policy allows; any other mailbox answers `r: 1003` with reason
+  `EMAIL_SENDER_NOT_GRANTED`.

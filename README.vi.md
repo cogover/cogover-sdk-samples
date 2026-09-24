@@ -17,7 +17,7 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
 
 - `src/samples/<nhóm>/<tên>.ts`: mỗi file một sample, mỗi sample một route, gom theo nhóm API của
   SDK (router, response, record, filter, danh tính, state, lock, fetch, schema, logging, lỗi, push,
-  job, secret, mật mã, inbound webhook).
+  job, secret, mật mã, inbound webhook, cơ cấu tổ chức, thông báo, email).
 - `src/triggers/`: record trigger before-change và after-change trên Object demo `sample_order`.
 - `src/jobs/`: một background job chạy khi enqueue và một job chạy theo lịch, khai báo bằng `defineJob`.
 - `GET /`: catalog. Liệt kê mọi sample kèm route, các SDK API được minh họa, file nguồn và một lệnh
@@ -265,6 +265,21 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `GET /org/personnel/:personnelId/managers` | [20-org/manager-chain.ts](src/samples/20-org/manager-chain.ts) | `org.personnel.managerChain`, `org.departments.managers`, `OrgPersonnelChainOptions`, `OrgManagerOptions`, `OrgManagerChain`, `OrgManagerTier` | org.personnel.managerChain and departments.managers: approvers nearest first, plus the heads of the start department. |
 | `POST /org/approval-check` | [20-org/approval-check.ts](src/samples/20-org/approval-check.ts) | `org.isManagerOf`, `org.isInDepartment`, `OrgIsManagerOfOptions`, `OrgIsInDepartmentOptions` | org.isManagerOf and org.isInDepartment: allow an approval for the owner's managers or a finance department. |
 
+### Thông báo
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `POST /notifications/send` | [21-notifications/send.ts](src/samples/21-notifications/send.ts) | `context.notifications`, `NotificationsApi`, `notifications.send`, `NotificationMessage`, `NotificationResult`, `NotificationContentType`, `NotificationDisplay` | notifications.send(message): notify people in their notification list, with an email copy per channel. |
+| `POST /notifications/order-approval/:orderId` | [21-notifications/order-approval.ts](src/samples/21-notifications/order-approval.ts) | `notifications.send`, `NotificationLink`, `NotificationLinkTarget`, `NotificationSender`, `idempotencyKey` | notifications.send with sender, link and idempotencyKey: ask approvers to review an order exactly once. |
+
+### Email
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `GET /email/senders` | [22-email/senders.ts](src/samples/22-email/senders.ts) | `context.email`, `EmailApi`, `email.senders`, `EmailSenderInfo`, `EmailSenderKind` | email.senders(): list the mailboxes the Project policy lets this execution send from. |
+| `POST /email/send` | [22-email/send.ts](src/samples/22-email/send.ts) | `email.send`, `EmailMessage`, `EmailSender`, `EmailRecipient`, `EmailSendResult`, `EmailDelivery`, `PermissionDeniedError` | email.send(message): send an email from a granted Workspace or personal mailbox. |
+| `POST /email/customers/:customerId` | [22-email/customer-email.ts](src/samples/22-email/customer-email.ts) | `email.send`, `EmailRecordLink`, `EmailAttachment`, `recordEmailFields`, `appendSignature` | email.send with record, recordEmailFields and attachments: email a customer and log it on the timeline. |
+
 ### Record trigger
 
 | Key | Timing | Operation | File |
@@ -281,7 +296,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_recount_orders` | theo enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Tổng cộng: 76 route, 4 record trigger và 2 background job.
+Tổng cộng: 81 route, 4 record trigger và 2 background job.
 <!-- catalog:end -->
 
 ## Chạy record trigger trên local server
@@ -359,6 +374,28 @@ Băm, HMAC với key tường minh và giá trị ngẫu nhiên của `crypto` c
 local server. Mã hoá AES cũng chạy được mà không cần secret khi request truyền `key`; giải mã thất
 bại trả về `r: 1011` với code `DECRYPTION_FAILED`.
 
+## Thông báo và email
+
+Cả hai đều tới người thật, vì vậy hãy chạy trên Workspace thử nghiệm và trong Development Session
+cho phép ghi. Session chỉ đọc và before-change trigger từ chối cả hai; `GET /email/senders` chỉ đọc
+nên chạy được ở mọi nơi.
+
+- **Thông báo** (`POST /notifications/send`, `POST /notifications/order-approval/:orderId`): Workspace
+  cần có notification channel. Truyền record ID của một channel vào `channel` để channel quyết định
+  kênh giao (in-app, web push, mobile push, bản email); không truyền thì bật tất cả. Nhân sự chưa có
+  tài khoản người dùng được trả về trong `skippedPersonnelIds`.
+- **Email** (`GET /email/senders`, `POST /email/send`, `POST /email/customers/:customerId`): thêm các
+  hộp thư vào mục `email` của identity policy của Project và duyệt cho version:
+
+  ```json
+  "email": { "workspaceMailboxIds": ["<mailboxId>"], "allowActorMailbox": true }
+  ```
+
+  `POST /email/send` gửi thẳng từ hộp thư. `POST /email/customers/:customerId` gửi tới field `email`
+  của customer, ghi email lên timeline của customer và đính kèm file của một order (`orderId`). Thành
+  công nghĩa là Cogover đã nhận email; lỗi gửi xảy ra sau đó không được báo lại cho script. Cả hai
+  route email và thông báo xin duyệt đều dùng `idempotencyKey`, nên gọi lại không gửi hai lần.
+
 ## Entry point một endpoint
 
 `src/entries/define-script.ts` minh họa `defineScript`, kiểu entry point cho project chỉ có một
@@ -379,8 +416,8 @@ cogover-dev activate <version-id>
 ```
 
 Đọc kỹ trước khi publish lên Workspace có dữ liệu thật: các sample ghi sẽ tạo, sửa và xóa record
-của Object demo, `identity/as-system` đọc mà không áp quyền record của người gọi, các sample push
-gửi thông báo tới người dùng thật, các trigger chạy cho mọi lần ghi vào `sample_order`, và job theo
+của Object demo, `identity/as-system` đọc mà không áp quyền record của người gọi, các sample push,
+thông báo và email tới người thật, các trigger chạy cho mọi lần ghi vào `sample_order`, và job theo
 lịch hủy các `sample_order` cũ mỗi đêm trong lúc version còn active. Hãy
 publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi `src/samples/index.ts` và
 `src/triggers/index.ts`.

@@ -35,6 +35,8 @@ const GROUP_TITLES: Readonly<Record<string, Readonly<Record<Lang, string>>>> = {
     "18-crypto": { en: "Cryptography", vi: "Mật mã" },
     "19-inbound": { en: "Inbound webhooks", vi: "Inbound webhook" },
     "20-org": { en: "Organization structure", vi: "Cơ cấu tổ chức" },
+    "21-notifications": { en: "Notifications", vi: "Thông báo" },
+    "22-email": { en: "Email", vi: "Email" },
 };
 
 const JOB_FILES: Readonly<Record<string, string>> = {

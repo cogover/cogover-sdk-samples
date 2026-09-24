@@ -96,6 +96,13 @@ import orgPositions from "./20-org/positions.js";
 import orgManagerChain from "./20-org/manager-chain.js";
 import orgApprovalCheck from "./20-org/approval-check.js";
 
+import notificationsSend from "./21-notifications/send.js";
+import notificationsOrderApproval from "./21-notifications/order-approval.js";
+
+import emailSenders from "./22-email/senders.js";
+import emailSend from "./22-email/send.js";
+import emailCustomerEmail from "./22-email/customer-email.js";
+
 /**
  * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
  * self-contained bundle and does not allow dynamic imports, so a new sample is added here by hand.
@@ -196,4 +203,11 @@ export const samples: readonly Sample[] = [
     orgPositions,
     orgManagerChain,
     orgApprovalCheck,
+
+    notificationsSend,
+    notificationsOrderApproval,
+
+    emailSenders,
+    emailSend,
+    emailCustomerEmail,
 ];
