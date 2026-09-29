@@ -108,8 +108,19 @@ import notificationsOrderApproval from "./21-notifications/order-approval.js";
 import emailSenders from "./22-email/senders.js";
 import emailSend from "./22-email/send.js";
 import emailCustomerEmail from "./22-email/customer-email.js";
+
 import limitsUsage from "./23-limits/usage.js";
 import limitsHandOff from "./23-limits/hand-off.js";
+
+import actionsManifests from "./24-actions/manifests.js";
+import actionsSchemaBuilder from "./24-actions/schema-builder.js";
+import actionsScoreCustomer from "./24-actions/score-customer.js";
+
+import processesStart from "./25-processes/start.js";
+import processesGet from "./25-processes/get.js";
+
+import agentsStart from "./26-agents/start.js";
+import agentsGet from "./26-agents/get.js";
 
 /**
  * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
@@ -227,4 +238,14 @@ export const samples: readonly Sample[] = [
 
     limitsUsage,
     limitsHandOff,
+
+    actionsManifests,
+    actionsSchemaBuilder,
+    actionsScoreCustomer,
+
+    processesStart,
+    processesGet,
+
+    agentsStart,
+    agentsGet,
 ];

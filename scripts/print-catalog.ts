@@ -8,6 +8,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { actions } from "../src/actions/index.js";
 import { jobs } from "../src/jobs/index.js";
 import { samples } from "../src/samples/index.js";
 import { triggers } from "../src/triggers/index.js";
@@ -37,11 +38,22 @@ const GROUP_TITLES: Readonly<Record<string, Readonly<Record<Lang, string>>>> = {
     "20-org": { en: "Organization structure", vi: "Cơ cấu tổ chức" },
     "21-notifications": { en: "Notifications", vi: "Thông báo" },
     "22-email": { en: "Email", vi: "Email" },
+    "23-limits": { en: "Execution limits", vi: "Giới hạn thực thi" },
+    "24-actions": { en: "Custom Module Action routes", vi: "Route cho Custom Module Action" },
+    "25-processes": { en: "Processes", vi: "Process" },
+    "26-agents": { en: "AI Agents", vi: "AI Agent" },
 };
 
 const JOB_FILES: Readonly<Record<string, string>> = {
     sample_recount_orders: "src/jobs/recount-orders.ts",
     sample_cancel_stale_orders: "src/jobs/cancel-stale-orders.ts",
+    sample_process_completed: "src/jobs/process-completed.ts",
+    sample_agent_result: "src/jobs/agent-result.ts",
+};
+
+const ACTION_FILES: Readonly<Record<string, string>> = {
+    sample_score_customer: "src/actions/score-customer.ts",
+    sample_set_order_status: "src/actions/set-order-status.ts",
 };
 
 const TRIGGER_FILES: Readonly<Record<string, string>> = {
@@ -85,9 +97,16 @@ function render(lang: Lang): string {
             : `\`${job.config.schedule.cron}\` (${job.config.schedule.timezone})`;
         lines.push(`| \`${job.key}\` | ${schedule} | [${file.replace("src/jobs/", "")}](${file}) |`);
     }
+    lines.push("", "### Custom Module Actions", "");
+    lines.push(vi ? "| Key | Nhãn | Dùng ở | Effect | File |" : "| Key | Label | Exposed to | Effect | File |", "|---|---|---|---|---|");
+    for (const action of actions) {
+        const file = ACTION_FILES[action.key] ?? "src/actions/index.ts";
+        const exposeTo = action.config.exposeTo.map(consumer => consumer === "process" ? "Process" : "AI Agent").join(", ");
+        lines.push(`| \`${action.key}\` | ${escape(action.config.label)} | ${exposeTo} | ${action.config.effect} | [${file.replace("src/actions/", "")}](${file}) |`);
+    }
     lines.push("", vi
-        ? `Tổng cộng: ${samples.length} route, ${triggers.length} record trigger và ${jobs.length} background job.`
-        : `Total: ${samples.length} routes, ${triggers.length} record triggers and ${jobs.length} background jobs.`, "");
+        ? `Tổng cộng: ${samples.length} route, ${triggers.length} record trigger, ${jobs.length} background job và ${actions.length} Custom Module Action.`
+        : `Total: ${samples.length} routes, ${triggers.length} record triggers, ${jobs.length} background jobs and ${actions.length} Custom Module Actions.`, "");
     return lines.join("\n");
 }
 

@@ -17,9 +17,13 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
 
 - `src/samples/<nhóm>/<tên>.ts`: mỗi file một sample, mỗi sample một route, gom theo nhóm API của
   SDK (router, response, record, filter, danh tính, state, lock, fetch, schema, logging, lỗi, push,
-  job, secret, mật mã, inbound webhook, cơ cấu tổ chức, thông báo, email).
+  job, secret, mật mã, inbound webhook, cơ cấu tổ chức, thông báo, email, giới hạn, action, Process,
+  AI Agent).
 - `src/triggers/`: record trigger before-change và after-change trên Object demo `sample_order`.
-- `src/jobs/`: một background job chạy khi enqueue và một job chạy theo lịch, khai báo bằng `defineJob`.
+- `src/jobs/`: một background job chạy khi enqueue, một job chạy theo lịch và các job nhận kết quả của
+  Process hoặc lượt chạy AI Agent, khai báo bằng `defineJob`.
+- `src/actions/`: một Custom Module Action đọc và một action ghi, khai báo bằng `defineAction` và bộ
+  dựng schema `s`, để Process và AI Agent của Workspace gọi.
 - `GET /`: catalog. Liệt kê mọi sample kèm route, các SDK API được minh họa, file nguồn và một lệnh
   `curl` chạy ngay được.
 - `src/entries/define-script.ts`: kiểu entry point một endpoint (`defineScript`) thay cho router.
@@ -29,7 +33,7 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
 
 ## Yêu cầu
 
-- Node.js 20 trở lên và Cogover Dev CLI 0.13 trở lên (`npm install --global @cogover/dev-cli`).
+- Node.js 20 trở lên và Cogover Dev CLI 0.20 trở lên (`npm install --global @cogover/dev-cli`).
 - TypeScript 5.0 trở lên, phiên bản mà `@cogover/sdk` 0.13 yêu cầu; `npm install` cài sẵn phiên bản phù hợp.
 - Một Workspace Cogover mà bạn có quyền tạo Object và tạo Project Custom Backend Module.
 - Project key để tạo Development Session khi phát triển local, và Workspace API key nếu publish.
@@ -287,12 +291,34 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `POST /email/send` | [22-email/send.ts](src/samples/22-email/send.ts) | `email.send`, `EmailMessage`, `EmailSender`, `EmailRecipient`, `EmailSendResult`, `EmailDelivery`, `PermissionDeniedError` | email.send(message): send an email from a granted Workspace or personal mailbox. |
 | `POST /email/customers/:customerId` | [22-email/customer-email.ts](src/samples/22-email/customer-email.ts) | `email.send`, `EmailRecordLink`, `EmailAttachment`, `recordEmailFields`, `appendSignature` | email.send with record, recordEmailFields and attachments: email a customer and log it on the timeline. |
 
-### 23-limits
+### Giới hạn thực thi
 
 | Route | File | SDK API | Tóm tắt |
 |---|---|---|---|
 | `GET /limits/usage` | [23-limits/usage.ts](src/samples/23-limits/usage.ts) | `limits`, `LimitsApi`, `LimitUsage`, `LimitCounter`, `ScriptContext.limits` | Read limits.usage() (capability calls, local calls, records read and written, time) before and after two calls. |
 | `POST /limits/hand-off` | [23-limits/hand-off.ts](src/samples/23-limits/hand-off.ts) | `limits`, `LimitUsage.recordsRead`, `LimitCounter.remaining`, `RateLimitError.details.budget`, `jobs.enqueue` | Page through records while limits.usage() allows, then enqueue a job with the cursor; report a budget RateLimitError. |
+
+### Route cho Custom Module Action
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `GET /actions/manifests` | [24-actions/manifests.ts](src/samples/24-actions/manifests.ts) | `defineAction`, `ActionDefinition.config`, `ActionManifest`, `JsonSchema`, `actions export` | The actions export: every ActionDefinition.config (ActionManifest) with its input and output JSON Schema, or one with ?key=. |
+| `GET /actions/schema-builder` | [24-actions/schema-builder.ts](src/samples/24-actions/schema-builder.ts) | `s`, `Schema`, `ObjectSchema`, `ObjectShape`, `InferSchema`, `JsonSchema`, `Schema.toJSON` | The s schema builder: JSON Schema of every node type, .optional() and .describe(), InferSchema, and format checks without pattern. |
+| `GET /actions/score-customer/:customerId` | [24-actions/score-customer.ts](src/samples/24-actions/score-customer.ts) | `defineAction`, `ActionHandler`, `InferSchema`, `records.aggregate` | Share one function between a route and an action: score a customer over HTTP exactly as sample_score_customer does. |
+
+### Process
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `POST /processes/start` | [25-processes/start.ts](src/samples/25-processes/start.ts) | `context.processes`, `ProcessesApi`, `processes.start`, `ProcessStartOptions`, `ProcessStartResult`, `ProcessCompletion` | processes.start(processInfoId, { input, instanceName, idempotencyKey, onComplete }): start a Process; the outcome goes to a job. |
+| `GET /processes/get/:instanceId` | [25-processes/get.ts](src/samples/25-processes/get.ts) | `processes.get`, `ProcessInstanceState` | processes.get(instanceId): state, startedAt and finishedAt of a Process instance this project started. |
+
+### AI Agent
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `POST /agents/start` | [26-agents/start.ts](src/samples/26-agents/start.ts) | `context.agents`, `AgentsApi`, `agents.start`, `AgentStartOptions`, `AgentStartResult`, `AgentRecordReference`, `AgentResultCompletion`, `s.object` | agents.start(agentId, { instruction, variables, records, resultSchema, runAs, approvalPolicy, onResult }): run an AI Agent in the background. |
+| `GET /agents/get/:runId` | [26-agents/get.ts](src/samples/26-agents/get.ts) | `agents.get`, `AgentRunState` | agents.get<TResult>(runId): status, text answer, structured result and error of an agent run this project started. |
 
 ### Record trigger
 
@@ -309,8 +335,17 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 |---|---|---|
 | `sample_recount_orders` | theo enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
+| `sample_process_completed` | theo enqueue | [process-completed.ts](src/jobs/process-completed.ts) |
+| `sample_agent_result` | theo enqueue | [agent-result.ts](src/jobs/agent-result.ts) |
 
-Tổng cộng: 89 route, 4 record trigger và 2 background job.
+### Custom Module Actions
+
+| Key | Nhãn | Dùng ở | Effect | File |
+|---|---|---|---|---|
+| `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
+| `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
+
+Tổng cộng: 96 route, 4 record trigger, 4 background job và 2 Custom Module Action.
 <!-- catalog:end -->
 
 ## Đọc record
@@ -427,6 +462,46 @@ nên chạy được ở mọi nơi.
   công nghĩa là Cogover đã nhận email; lỗi gửi xảy ra sau đó không được báo lại cho script. Cả hai
   route email và thông báo xin duyệt đều dùng `idempotencyKey`, nên gọi lại không gửi hai lần.
 
+## Custom Module Action, Process và AI Agent
+
+`src/actions/` khai báo hai action trong named export `actions` của `src/main.ts`. Khi một version
+active, Process Builder hiển thị chúng dưới dạng node **Custom Module Action**, còn AI Agent Builder
+hiển thị chúng là tool thuộc nhóm **Custom Module**:
+
+- `sample_score_customer` (`effect: "read"`) chấm điểm customer theo hạng và các order, trả về hạng
+  A, B hoặc C kèm lý do. `GET /actions/score-customer/:customerId` chạy đúng hàm đó qua HTTP, nên có
+  thể thử logic trên local và bằng `curl`.
+- `sample_set_order_status` (`effect: "write"`) chuyển order từ new sang confirmed hoặc cancelled, hoặc
+  từ confirmed sang shipped hoặc cancelled, và thêm lý do vào ghi chú. Khi AI Agent gọi, action chỉ đổi
+  những order mà người đang chat với agent đọc được qua `data.asUser`, nên identity policy phải cho phép
+  `asUser` trên `sample_order`. Tool của agent cho action ghi mặc định cần một người duyệt.
+
+`GET /actions/manifests` trả về những gì hai builder đọc (nhãn, mô tả, JSON Schema) và
+`GET /actions/schema-builder` trả về JSON Schema của mọi builder trong `s`. Local server không chạy
+action. Node Process chạy action không có user (SYSTEM) còn cần `allowInternalSystem: true` trong
+identity policy.
+
+`POST /processes/start` và `POST /agents/start` cần mục `processes` và `agents` trong identity policy
+của Project, được quản trị viên Workspace duyệt; thiếu các mục này thì route trả về `r: 1003` với
+reason `PROCESSES_NOT_ALLOWED` hoặc `AGENTS_NOT_ALLOWED`:
+
+```json
+"processes": { "processes": { "mode": "ONLY", "processInfoIds": ["<processInfoId>"] }, "allowSystem": false },
+"agents": { "agents": { "mode": "ONLY", "agentIds": ["<agentId>"] }, "allowSystem": false, "maxRunsPerDay": 200, "allowAutoApprove": false }
+```
+
+- `processInfoId` là ID của một Process dạng Normal flow. Route gửi `{ "order_id": "<orderId>" }` làm
+  input của Process, trừ khi body có `input` với tên các biến input của Process của bạn. Khi instance
+  kết thúc, job `sample_process_completed` lưu kết quả tại `GET /state/get/last-process-outcome` và
+  thêm ghi chú vào order; job xác nhận order đang new khi biến output `approved` của Process là `true`.
+- `agentId` là ID của một AI Agent. Lượt chạy đọc customer và phải trả lời theo result schema
+  `customerAdviceSchema` trong `src/jobs/agent-result.ts`; job `sample_agent_result` lưu kết quả tại
+  `GET /state/get/last-agent-result` và thêm lời khuyên vào ghi chú của customer.
+- Trong Development Session lệnh start cũng chạy thật, và session phải cho phép ghi, nhưng session từ
+  chối `onComplete` và `onResult` (`r: 1014`): gửi `"onComplete": false` hoặc `"onResult": false` rồi
+  theo dõi bằng `GET /processes/get/:instanceId` hoặc `GET /agents/get/:runId`. Truyền `idempotencyKey`
+  để lần gọi lặp lại trả về instance hoặc lượt chạy đầu tiên với `duplicate: true`.
+
 ## Entry point một endpoint
 
 `src/entries/define-script.ts` minh họa `defineScript`, kiểu entry point cho project chỉ có một
@@ -449,9 +524,10 @@ cogover-dev activate <version-id>
 Đọc kỹ trước khi publish lên Workspace có dữ liệu thật: các sample ghi sẽ tạo, sửa và xóa record
 của Object demo, `identity/as-system` đọc mà không áp quyền record của người gọi, các sample push,
 thông báo và email tới người thật, các trigger chạy cho mọi lần ghi vào `sample_order`, và job theo
-lịch hủy các `sample_order` cũ mỗi đêm trong lúc version còn active. Hãy
-publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi `src/samples/index.ts` và
-`src/triggers/index.ts`.
+lịch hủy các `sample_order` cũ mỗi đêm trong lúc version còn active. Hai action hiện trong Process
+Builder và AI Agent Builder với mọi thành viên của Workspace, còn các sample Process và AI Agent tạo
+instance và lượt chạy thật. Hãy publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi
+`src/samples/index.ts`, `src/triggers/index.ts` và `src/actions/index.ts`.
 
 ## Cập nhật theo mỗi bản phát hành SDK
 
@@ -472,9 +548,9 @@ npm test
 
 `local/samples.test.ts` khởi chạy local server không cần Development Session và kiểm tra catalog
 cùng mọi sample không cần capability của Cogover (router, response, invocation, ánh xạ lỗi, helper
-tương thích). File này cũng chạy các sample đọc record (`fields`, `expandLookups`, `records.aggregate`,
-`asUser`) với một capability bridge giả lập: test kiểm tra request mà SDK gửi đi, không kiểm tra câu trả
-lời của Cogover. Các test còn lại thuộc bộ công cụ local của starter.
+tương thích, manifest và schema của action). File này cũng chạy các sample đọc record (`fields`,
+`expandLookups`, `records.aggregate`, `asUser`), hai action và các sample Process, AI Agent với một
+capability bridge giả lập: test kiểm tra request mà SDK gửi đi, không kiểm tra câu trả lời của Cogover. Các test còn lại thuộc bộ công cụ local của starter.
 
 ## Cấu trúc project
 
@@ -493,8 +569,9 @@ lời của Cogover. Các test còn lại thuộc bộ công cụ local của st
     ├── main.ts               # đăng ký mọi sample; GET / là catalog
     ├── sample.ts             # defineSample(): mỗi sample một route
     ├── workspace.d.ts        # khai báo kiểu của Object demo
+    ├── actions/              # defineAction(): Custom Module Action cho Process và AI Agent
     ├── entries/define-script.ts
-    ├── jobs/                 # defineJob(): một job enqueue, một job theo lịch
+    ├── jobs/                 # defineJob(): job enqueue, job theo lịch, job nhận kết quả Process/AI Agent
     ├── samples/<nhóm>/<tên>.ts
     └── triggers/
 ```

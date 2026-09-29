@@ -17,9 +17,13 @@ so local development, testing and publishing work exactly as in the starter. It 
 
 - `src/samples/<area>/<name>.ts`: one sample per file, one route per sample, grouped by SDK area
   (router, response, records, filters, identity, state, locks, fetch, schema, logging, errors, push,
-  jobs, secrets, crypto, inbound webhooks, organization, notifications, email).
+  jobs, secrets, crypto, inbound webhooks, organization, notifications, email, limits, actions,
+  Processes, AI Agents).
 - `src/triggers/`: before-change and after-change record triggers on the demo Object `sample_order`.
-- `src/jobs/`: an enqueued background job and a scheduled one, declared with `defineJob`.
+- `src/jobs/`: an enqueued background job, a scheduled one, and the jobs that receive the outcome of a
+  Process or an AI Agent run, declared with `defineJob`.
+- `src/actions/`: a read and a write Custom Module Action, declared with `defineAction` and the `s`
+  schema builder, that Processes and AI Agents of the Workspace can call.
 - `GET /`: the catalog. It lists every sample with its route, the SDK APIs it shows, its source file
   and a ready-to-run `curl`.
 - `src/entries/define-script.ts`: the single-endpoint entry style (`defineScript`) as an alternative
@@ -30,7 +34,7 @@ so local development, testing and publishing work exactly as in the starter. It 
 
 ## Requirements
 
-- Node.js 20 or later and the Cogover Dev CLI 0.13 or later (`npm install --global @cogover/dev-cli`).
+- Node.js 20 or later and the Cogover Dev CLI 0.20 or later (`npm install --global @cogover/dev-cli`).
 - TypeScript 5.0 or later, which `@cogover/sdk` 0.13 needs; `npm install` installs a suitable version.
 - A Cogover Workspace where you can create Objects and a Custom Backend Module Project.
 - A Project key for local Development Sessions, and a Workspace API key if you publish.
@@ -289,12 +293,34 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `POST /email/send` | [22-email/send.ts](src/samples/22-email/send.ts) | `email.send`, `EmailMessage`, `EmailSender`, `EmailRecipient`, `EmailSendResult`, `EmailDelivery`, `PermissionDeniedError` | email.send(message): send an email from a granted Workspace or personal mailbox. |
 | `POST /email/customers/:customerId` | [22-email/customer-email.ts](src/samples/22-email/customer-email.ts) | `email.send`, `EmailRecordLink`, `EmailAttachment`, `recordEmailFields`, `appendSignature` | email.send with record, recordEmailFields and attachments: email a customer and log it on the timeline. |
 
-### 23-limits
+### Execution limits
 
 | Route | File | SDK APIs | Summary |
 |---|---|---|---|
 | `GET /limits/usage` | [23-limits/usage.ts](src/samples/23-limits/usage.ts) | `limits`, `LimitsApi`, `LimitUsage`, `LimitCounter`, `ScriptContext.limits` | Read limits.usage() (capability calls, local calls, records read and written, time) before and after two calls. |
 | `POST /limits/hand-off` | [23-limits/hand-off.ts](src/samples/23-limits/hand-off.ts) | `limits`, `LimitUsage.recordsRead`, `LimitCounter.remaining`, `RateLimitError.details.budget`, `jobs.enqueue` | Page through records while limits.usage() allows, then enqueue a job with the cursor; report a budget RateLimitError. |
+
+### Custom Module Action routes
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `GET /actions/manifests` | [24-actions/manifests.ts](src/samples/24-actions/manifests.ts) | `defineAction`, `ActionDefinition.config`, `ActionManifest`, `JsonSchema`, `actions export` | The actions export: every ActionDefinition.config (ActionManifest) with its input and output JSON Schema, or one with ?key=. |
+| `GET /actions/schema-builder` | [24-actions/schema-builder.ts](src/samples/24-actions/schema-builder.ts) | `s`, `Schema`, `ObjectSchema`, `ObjectShape`, `InferSchema`, `JsonSchema`, `Schema.toJSON` | The s schema builder: JSON Schema of every node type, .optional() and .describe(), InferSchema, and format checks without pattern. |
+| `GET /actions/score-customer/:customerId` | [24-actions/score-customer.ts](src/samples/24-actions/score-customer.ts) | `defineAction`, `ActionHandler`, `InferSchema`, `records.aggregate` | Share one function between a route and an action: score a customer over HTTP exactly as sample_score_customer does. |
+
+### Processes
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `POST /processes/start` | [25-processes/start.ts](src/samples/25-processes/start.ts) | `context.processes`, `ProcessesApi`, `processes.start`, `ProcessStartOptions`, `ProcessStartResult`, `ProcessCompletion` | processes.start(processInfoId, { input, instanceName, idempotencyKey, onComplete }): start a Process; the outcome goes to a job. |
+| `GET /processes/get/:instanceId` | [25-processes/get.ts](src/samples/25-processes/get.ts) | `processes.get`, `ProcessInstanceState` | processes.get(instanceId): state, startedAt and finishedAt of a Process instance this project started. |
+
+### AI Agents
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `POST /agents/start` | [26-agents/start.ts](src/samples/26-agents/start.ts) | `context.agents`, `AgentsApi`, `agents.start`, `AgentStartOptions`, `AgentStartResult`, `AgentRecordReference`, `AgentResultCompletion`, `s.object` | agents.start(agentId, { instruction, variables, records, resultSchema, runAs, approvalPolicy, onResult }): run an AI Agent in the background. |
+| `GET /agents/get/:runId` | [26-agents/get.ts](src/samples/26-agents/get.ts) | `agents.get`, `AgentRunState` | agents.get<TResult>(runId): status, text answer, structured result and error of an agent run this project started. |
 
 ### Record triggers
 
@@ -311,8 +337,17 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 |---|---|---|
 | `sample_recount_orders` | on enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
+| `sample_process_completed` | on enqueue | [process-completed.ts](src/jobs/process-completed.ts) |
+| `sample_agent_result` | on enqueue | [agent-result.ts](src/jobs/agent-result.ts) |
 
-Total: 89 routes, 4 record triggers and 2 background jobs.
+### Custom Module Actions
+
+| Key | Label | Exposed to | Effect | File |
+|---|---|---|---|---|
+| `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
+| `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
+
+Total: 96 routes, 4 record triggers, 4 background jobs and 2 Custom Module Actions.
 <!-- catalog:end -->
 
 ## Reading records
@@ -431,6 +466,48 @@ and works everywhere.
   reported back to the script. Both email routes and the approval notification use an
   `idempotencyKey`, so repeating a call does not send twice.
 
+## Custom Module Actions, Processes and AI Agents
+
+`src/actions/` declares two actions in the named `actions` export of `src/main.ts`. Once a version is
+active, Process Builder offers them as **Custom Module Action** nodes and AI Agent Builder as tools of
+the **Custom Module** category:
+
+- `sample_score_customer` (`effect: "read"`) scores a customer from its tier and its orders and returns
+  tier A, B or C with the reasons. `GET /actions/score-customer/:customerId` runs the same function over
+  HTTP, so the logic can be tried locally and with `curl`.
+- `sample_set_order_status` (`effect: "write"`) moves an order from new to confirmed or cancelled, or from
+  confirmed to shipped or cancelled, and adds the reason to its note. Called by an AI Agent, it changes
+  only orders that the person chatting with the agent can read through `data.asUser`, so the identity
+  policy must allow `asUser` on `sample_order`. An agent tool for a write action asks a person for
+  approval by default.
+
+`GET /actions/manifests` returns what the builders read (labels, descriptions, JSON Schemas) and
+`GET /actions/schema-builder` the JSON Schema of every `s` builder. The local server does not run
+actions. A Process node that runs an action without a user (SYSTEM) also needs
+`allowInternalSystem: true` in the identity policy.
+
+`POST /processes/start` and `POST /agents/start` need a `processes` and an `agents` section in the
+Project identity policy, approved by a Workspace administrator; without them they answer `r: 1003`
+with reason `PROCESSES_NOT_ALLOWED` or `AGENTS_NOT_ALLOWED`:
+
+```json
+"processes": { "processes": { "mode": "ONLY", "processInfoIds": ["<processInfoId>"] }, "allowSystem": false },
+"agents": { "agents": { "mode": "ONLY", "agentIds": ["<agentId>"] }, "allowSystem": false, "maxRunsPerDay": 200, "allowAutoApprove": false }
+```
+
+- `processInfoId` is the ID of a Normal flow Process. The route sends `{ "order_id": "<orderId>" }` as
+  the Process input unless the body has `input` with the names of your Process input variables. When
+  the instance ends, the job `sample_process_completed` stores the outcome under
+  `GET /state/get/last-process-outcome` and adds a note to the order; it confirms a new order when the
+  Process output variable `approved` is `true`.
+- `agentId` is the ID of an AI Agent. The run reads the customer and must answer with the result schema
+  `customerAdviceSchema` of `src/jobs/agent-result.ts`; the job `sample_agent_result` stores the outcome
+  under `GET /state/get/last-agent-result` and adds the advice to the customer's note.
+- Starts are real in a Development Session too, which must allow writes, but the session refuses
+  `onComplete` and `onResult` (`r: 1014`): send `"onComplete": false` or `"onResult": false` and follow
+  the run with `GET /processes/get/:instanceId` or `GET /agents/get/:runId`. Pass an `idempotencyKey` so
+  that a repeated call returns the first instance or run with `duplicate: true`.
+
 ## Single-endpoint entry point
 
 `src/entries/define-script.ts` shows `defineScript`, the entry style for a project with one
@@ -454,8 +531,10 @@ Read this before publishing to a Workspace with real data: the write samples cre
 delete records of the demo Objects, `identity/as-system` reads without the caller's record
 permissions, the push, notification and email samples reach real people, the triggers run for every write to
 `sample_order`, and the scheduled job cancels stale `sample_order` records every night while the
-version is active. Publish to a test Workspace, or remove the samples you do not want from
-`src/samples/index.ts` and `src/triggers/index.ts`.
+version is active. The two actions appear in Process Builder and AI Agent Builder for every member of
+the Workspace, and the Process and AI Agent samples start real instances and runs. Publish to a test
+Workspace, or remove the samples you do not want from `src/samples/index.ts`, `src/triggers/index.ts`
+and `src/actions/index.ts`.
 
 ## Keeping up with SDK releases
 
@@ -476,9 +555,10 @@ npm test
 
 `local/samples.test.ts` starts the local server without a Development Session and exercises the
 catalog and every sample that needs no Cogover capability (router, responses, invocation, error
-mapping, compatibility helper). It also runs the record read samples (`fields`, `expandLookups`,
-`records.aggregate`, `asUser`) against a simulated capability bridge, which checks the requests the
-SDK sends but not Cogover's answers. The other tests belong to the starter's local tooling.
+mapping, compatibility helper, action manifests and schemas). It also runs the record read samples
+(`fields`, `expandLookups`, `records.aggregate`, `asUser`), both actions, and the Process and AI Agent
+samples against a simulated capability bridge, which checks the requests the SDK sends but not
+Cogover's answers. The other tests belong to the starter's local tooling.
 
 ## Project layout
 
@@ -497,8 +577,9 @@ SDK sends but not Cogover's answers. The other tests belong to the starter's loc
     ├── main.ts               # registers every sample; GET / is the catalog
     ├── sample.ts             # defineSample(): one route per sample
     ├── workspace.d.ts        # typed declarations of the demo Objects
+    ├── actions/              # defineAction(): Custom Module Actions for Processes and AI Agents
     ├── entries/define-script.ts
-    ├── jobs/                 # defineJob(): one enqueued job, one scheduled job
+    ├── jobs/                 # defineJob(): enqueued, scheduled, and Process/AI Agent completion jobs
     ├── samples/<area>/<name>.ts
     └── triggers/
 ```

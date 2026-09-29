@@ -66,3 +66,11 @@ The Project's approved identity policy decides what the samples may do:
   for example `"email": { "workspaceMailboxIds": ["<mailboxId>"], "allowActorMailbox": true }`.
   `GET /email/senders` lists what the policy allows; any other mailbox answers `r: 1003` with reason
   `EMAIL_SENDER_NOT_GRANTED`.
+- Custom Module Actions: `sample_set_order_status` called by an AI Agent reads the order with
+  `data.asUser(<person chatting with the agent>)`, so the policy must approve `asUser` reads of
+  `sample_order`; otherwise it answers `outcome: "not_allowed"`. A Process node that runs an action
+  without a user needs `allowInternalSystem: true`.
+- Processes and AI Agents: `POST /processes/start` and `POST /agents/start` need the `processes` and
+  `agents` sections of the policy, listing the Process and the agent; without them they answer
+  `r: 1003` with reason `PROCESSES_NOT_ALLOWED` or `AGENTS_NOT_ALLOWED`. The completion jobs update
+  `sample_order.note`, `sample_order.status` and `sample_customer.note`.
