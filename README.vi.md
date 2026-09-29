@@ -287,6 +287,13 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `POST /email/send` | [22-email/send.ts](src/samples/22-email/send.ts) | `email.send`, `EmailMessage`, `EmailSender`, `EmailRecipient`, `EmailSendResult`, `EmailDelivery`, `PermissionDeniedError` | email.send(message): send an email from a granted Workspace or personal mailbox. |
 | `POST /email/customers/:customerId` | [22-email/customer-email.ts](src/samples/22-email/customer-email.ts) | `email.send`, `EmailRecordLink`, `EmailAttachment`, `recordEmailFields`, `appendSignature` | email.send with record, recordEmailFields and attachments: email a customer and log it on the timeline. |
 
+### 23-limits
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `GET /limits/usage` | [23-limits/usage.ts](src/samples/23-limits/usage.ts) | `limits`, `LimitsApi`, `LimitUsage`, `LimitCounter`, `ScriptContext.limits` | Read limits.usage() (capability calls, local calls, records read and written, time) before and after two calls. |
+| `POST /limits/hand-off` | [23-limits/hand-off.ts](src/samples/23-limits/hand-off.ts) | `limits`, `LimitUsage.recordsRead`, `LimitCounter.remaining`, `RateLimitError.details.budget`, `jobs.enqueue` | Page through records while limits.usage() allows, then enqueue a job with the cursor; report a budget RateLimitError. |
+
 ### Record trigger
 
 | Key | Timing | Operation | File |
@@ -303,7 +310,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_recount_orders` | theo enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Tổng cộng: 87 route, 4 record trigger và 2 background job.
+Tổng cộng: 89 route, 4 record trigger và 2 background job.
 <!-- catalog:end -->
 
 ## Đọc record

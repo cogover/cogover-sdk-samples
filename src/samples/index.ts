@@ -108,6 +108,8 @@ import notificationsOrderApproval from "./21-notifications/order-approval.js";
 import emailSenders from "./22-email/senders.js";
 import emailSend from "./22-email/send.js";
 import emailCustomerEmail from "./22-email/customer-email.js";
+import limitsUsage from "./23-limits/usage.js";
+import limitsHandOff from "./23-limits/hand-off.js";
 
 /**
  * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
@@ -222,4 +224,7 @@ export const samples: readonly Sample[] = [
     emailSenders,
     emailSend,
     emailCustomerEmail,
+
+    limitsUsage,
+    limitsHandOff,
 ];

@@ -50,8 +50,12 @@ const handler: JobHandler<RecountPayload> = async ({ job, payload, data, state, 
             ...(payload?.cursor === undefined ? {} : { cursor: payload.cursor }),
         });
     } catch (error) {
-        // A temporary failure: Cogover runs this attempt again later, up to `maxAttempts`.
-        if (error instanceof RateLimitError) throw new RetryableError("Rate limited while listing orders", { attempt: info.attempt });
+        // A temporary failure: Cogover runs this attempt again later, up to `maxAttempts`. A budget of this
+        // execution (`details.budget` is set) is not temporary: another attempt would reach it again.
+        const budget = error instanceof RateLimitError ? (error.details as { budget?: string } | undefined)?.budget : undefined;
+        if (error instanceof RateLimitError && budget === undefined) {
+            throw new RetryableError("Rate limited while listing orders", { attempt: info.attempt });
+        }
         throw error;
     }
 
