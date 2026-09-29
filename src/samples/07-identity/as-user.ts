@@ -1,5 +1,5 @@
 import { PermissionDeniedError, ValidationError } from "@cogover/sdk";
-import type { AsUserDataApi, ObjectClient, WorkspaceObjects } from "@cogover/sdk";
+import type { AsUserDataApi, AsUserObjectClient, AsUserRecordsApi, WorkspaceObjects } from "@cogover/sdk";
 import { defineSample } from "../../sample.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object";
@@ -9,13 +9,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> => value !==
  * client that applies that person's record permissions. The project's identity policy must approve
  * the caller, the target personnel, the Object and the operation; otherwise the call throws
  * `PermissionDeniedError` with `details.reason === "IDENTITY_NOT_GRANTED"`.
+ *
+ * Its `object(slug)` returns an `AsUserObjectClient`: the same reads and writes as the default client, except
+ * that `records.aggregate` cannot group and takes fewer metrics (see `as-user-aggregate.ts`).
  */
 export default defineSample({
     id: "identity.as-user",
     method: "GET",
     path: "/identity/as-user/:personnelId",
     summary: "data.asUser(personnelId): read records with another person's permissions (needs identity approval).",
-    sdk: ["data.asUser", "AsUserDataApi", "PermissionDeniedError"],
+    sdk: ["data.asUser", "AsUserDataApi", "AsUserObjectClient", "AsUserRecordsApi", "PermissionDeniedError"],
     file: "src/samples/07-identity/as-user.ts",
     curl: `curl -s "$BASE/identity/as-user/<personnelId>"`,
     handler: async ({ request, data }) => {
@@ -23,9 +26,10 @@ export default defineSample({
         if (personnelId.trim().length === 0) throw new ValidationError("personnelId is required");
 
         const delegated: AsUserDataApi = data.asUser(personnelId);
-        const orders: ObjectClient<WorkspaceObjects["sample_order"]> = delegated.object("sample_order");
+        const orders: AsUserObjectClient<WorkspaceObjects["sample_order"]> = delegated.object("sample_order");
+        const records: AsUserRecordsApi<WorkspaceObjects["sample_order"]> = orders.records;
         try {
-            const page = await orders.records.list({ fields: ["name", "status"], limit: 5 });
+            const page = await records.list({ fields: ["name", "status"], limit: 5 });
             return { personnelId, visibleTotal: page.total, sample: page.items.map(item => ({ id: item.id, ...item.fields })) };
         } catch (error) {
             if (error instanceof PermissionDeniedError) {

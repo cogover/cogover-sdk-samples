@@ -9,15 +9,16 @@ interface Input {
 
 /**
  * Lookup (reference) fields. A write accepts a record ID or a `RecordReference`; only the ID is sent.
- * A read returns `{ id, name, objectSlug }` of the referenced record, never its other fields:
- * read those with `records.get`/`records.getMany` on the target Object.
+ * A read returns a `RecordReference` `{ id, name, objectSlug }` whose `name` is `""` unless the read asks
+ * for `expandLookups`; with it, `name` and the chosen fields of the linked record are filled in (see
+ * `04-records-read/expand-lookups-fields.ts`). This sample reads the order back both ways.
  */
 export default defineSample<Input>({
     id: "records.lookup-reference",
     method: "POST",
     path: "/records/lookup-reference",
-    summary: "Write a lookup field with an ID and read it back as a RecordReference { id, name, objectSlug }.",
-    sdk: ["RecordReference", "records.create", "records.get"],
+    summary: "Write a lookup field with an ID and read it back as a RecordReference, without and with expandLookups.",
+    sdk: ["RecordReference", "records.create", "records.get", "expandLookups"],
     file: "src/samples/05-records-write/lookup-reference.ts",
     curl: `curl -s -X POST "$BASE/records/lookup-reference" -H "Content-Type: application/json" --data '{"customerId":"<sample_customer id>","name":"Order for Ada"}'`,
     handler: async ({ request, data }) => {
@@ -26,20 +27,25 @@ export default defineSample<Input>({
         if (typeof name !== "string" || name.trim().length === 0) throw new ValidationError("name is required");
 
         const customers = data.object("sample_customer");
-        const customer = await customers.records.get(customerId, { fields: ["name", "tier"] });
+        const customer = await customers.records.get(customerId, { fields: ["name"] });
         if (customer === null) throw new NotFoundError("sample_customer", customerId);
 
         const orders = data.object("sample_order");
         // Either form works for a reference field: the plain ID, or a RecordReference such as `customer` below.
         const orderId = await orders.records.create({ name: name.trim(), customer: customerId, status: "new", subtotal: 0, discount: 0, total: 0 });
-        const order = await orders.records.get(orderId, { fields: ["name", "customer"] });
+        const plain = await orders.records.get(orderId, { fields: ["customer"] });
+        const expanded = await orders.records.get(orderId, { fields: ["customer"], expandLookups: { customer: ["tier"] } });
 
-        const reference: RecordReference<"sample_customer"> | null = order?.fields.customer ?? null;
+        // { id, name: "", objectSlug: "sample_customer" }: the ID is always there, the name is not.
+        const reference: RecordReference<"sample_customer"> | null = plain?.fields.customer ?? null;
+        // { id, name, objectSlug, fields: { tier } }
+        const linked: RecordReference<"sample_customer"> | null = expanded?.fields.customer ?? null;
         return {
             orderId,
             customer: reference,
-            customerTier: customer.fields.tier,
-            note: "A reference exposes id, name and objectSlug only.",
+            customerExpanded: linked,
+            sameCustomer: reference?.id === customer.id && linked?.id === customer.id,
+            note: "Without expandLookups a lookup has an empty name; with it, the name and the chosen fields are filled in.",
         };
     },
 });

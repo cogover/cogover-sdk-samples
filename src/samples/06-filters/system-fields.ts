@@ -3,7 +3,9 @@ import { defineSample } from "../../sample.js";
 
 /**
  * The system fields `id`, `created`, `updated` and `created_by` are available on `object.fields`
- * next to the workspace fields. Timestamps are Unix milliseconds.
+ * next to the workspace fields; `where` and `orderBy` may use them without listing them in `fields`.
+ * Timestamps are Unix milliseconds. Their values are in `record.system`, where `createdBy.name` is `""`
+ * unless the read uses `expandLookups` (see `04-records-read/expand-lookups.ts`).
  */
 export default defineSample({
     id: "filters.system-fields",
@@ -30,7 +32,12 @@ export default defineSample({
         const same = ids.length === 0 ? null : await orders.records.list({ where: fields.id.in(ids), fields: ["name"] });
         return {
             since,
-            recent: page.items.map(item => ({ id: item.id, name: item.fields.name, createdAt: item.system.createdAt, createdBy: item.system.createdBy ?? null })),
+            recent: page.items.map(item => ({
+                id: item.id,
+                name: item.fields.name,
+                createdAt: item.system.createdAt,
+                createdById: item.system.createdBy?.id ?? null,
+            })),
             reReadByIds: same?.total ?? 0,
         };
     },

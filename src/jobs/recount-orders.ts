@@ -19,6 +19,8 @@ export interface OrderCountSummary {
  * A background job enqueued by code (see `src/samples/16-jobs/enqueue.ts`). Work that needs longer
  * than one attempt is split: this run counts one page of orders and enqueues itself again with the
  * cursor, then the last run stores the total in project state (read it with `GET /state/get/order-count`).
+ * Counting is only the example work here: a script that just needs the number calls
+ * `records.aggregate({ metrics: { orders: { count: "id" } } })` once (see `src/samples/04-records-read/aggregate.ts`).
  *
  * Runs execute at least once, so the handler is idempotent: `job.id` stays the same across attempts
  * and is part of the idempotency key of the follow-up enqueue. The configuration and handler are

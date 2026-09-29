@@ -31,6 +31,7 @@ so local development, testing and publishing work exactly as in the starter. It 
 ## Requirements
 
 - Node.js 20 or later and the Cogover Dev CLI 0.13 or later (`npm install --global @cogover/dev-cli`).
+- TypeScript 5.0 or later, which `@cogover/sdk` 0.13 needs; `npm install` installs a suitable version.
 - A Cogover Workspace where you can create Objects and a Custom Backend Module Project.
 - A Project key for local Development Sessions, and a Workspace API key if you publish.
 
@@ -123,10 +124,15 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 
 | Route | File | SDK APIs | Summary |
 |---|---|---|---|
-| `GET /records/get/:recordId` | [04-records-read/get.ts](src/samples/04-records-read/get.ts) | `data.object`, `records.get`, `GetRecordOptions`, `CogoverRecord`, `ObjectClient`, `FileValue` | records.get(id, { fields }): read one record; null when missing or not visible to the caller. |
+| `GET /records/get/:recordId` | [04-records-read/get.ts](src/samples/04-records-read/get.ts) | `data.object`, `records.get`, `GetRecordOptions`, `FieldSelection`, `SelectedFields`, `CogoverRecord`, `ObjectClient`, `FileValue` | records.get(id, { fields }): read the listed fields of one record; null when missing or not visible to the caller. |
 | `POST /records/get-many` | [04-records-read/get-many.ts](src/samples/04-records-read/get-many.ts) | `records.getMany`, `GetManyOptions`, `GetManyResult` | records.getMany(ids, { fields }): read up to 200 records in one call and index them by ID. |
 | `GET /records/list` | [04-records-read/list.ts](src/samples/04-records-read/list.ts) | `records.list`, `ListOptions`, `RecordPage`, `RecordsApi` | records.list({ fields, orderBy, limit, cursor }): one page of records with total and nextCursor. |
 | `GET /records/list-paging` | [04-records-read/list-paging.ts](src/samples/04-records-read/list-paging.ts) | `records.list`, `RecordPage.nextCursor`, `CogoverRecordId` | Follow records.list() cursors page by page until nextCursor is absent (bounded by maxPages). |
+| `GET /records/fields-all/:recordId` | [04-records-read/fields-all.ts](src/samples/04-records-read/fields-all.ts) | `records.get`, `fields: "*"`, `FieldSelection`, `CogoverRecord` | records.get(id, { fields: "*" }): read every field the identity and the project policy may read. |
+| `GET /records/expand-lookups` | [04-records-read/expand-lookups.ts](src/samples/04-records-read/expand-lookups.ts) | `records.list`, `expandLookups: true`, `RecordReference`, `RecordReference.fields` | records.list({ fields, expandLookups: true }): orders with their customer's name and fields, and createdBy.name. |
+| `GET /records/expand-lookups/fields` | [04-records-read/expand-lookups-fields.ts](src/samples/04-records-read/expand-lookups-fields.ts) | `records.list`, `expandLookups`, `ExpandLookups`, `SelectedFields`, `RecordReference.fields` | records.list({ fields, expandLookups: { customer: [...] } }): expand one lookup with chosen fields of the linked record. |
+| `GET /records/aggregate` | [04-records-read/aggregate.ts](src/samples/04-records-read/aggregate.ts) | `records.aggregate`, `AggregateOptions`, `AggregateMetric`, `AggregateResult`, `AggregateValues` | records.aggregate({ where, metrics }): count, countDistinct, sum, avg, min and max over the matching orders. |
+| `GET /records/aggregate/by-customer` | [04-records-read/aggregate-group.ts](src/samples/04-records-read/aggregate-group.ts) | `records.aggregate`, `GroupedAggregateOptions`, `AggregateGroupResult`, `AggregateGroup`, `AggregateGroupKey` | records.aggregate({ groupBy, metrics, limit }): orders and revenue per customer, with truncated when there are more groups. |
 
 ### Records: write
 
@@ -138,7 +144,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `POST /records/batch-update` | [05-records-write/batch-update.ts](src/samples/05-records-write/batch-update.ts) | `records.batchUpdate`, `BatchUpdateItem` | records.batchUpdate(items): set a status on up to 200 records in one call. |
 | `POST /records/upsert` | [05-records-write/upsert.ts](src/samples/05-records-write/upsert.ts) | `records.upsertByUniqueField`, `UpsertFields`, `UpsertResult` | records.upsertByUniqueField("email", fields): update the matching customer or create it. |
 | `DELETE /records/delete-many` | [05-records-write/delete-many.ts](src/samples/05-records-write/delete-many.ts) | `records.deleteMany`, `DeleteResult`, `CogoverApiError.r` | records.deleteMany(ids): delete orders (or customers with object: "sample_customer"); compare deleted with the request. |
-| `POST /records/lookup-reference` | [05-records-write/lookup-reference.ts](src/samples/05-records-write/lookup-reference.ts) | `RecordReference`, `records.create`, `records.get` | Write a lookup field with an ID and read it back as a RecordReference { id, name, objectSlug }. |
+| `POST /records/lookup-reference` | [05-records-write/lookup-reference.ts](src/samples/05-records-write/lookup-reference.ts) | `RecordReference`, `records.create`, `records.get`, `expandLookups` | Write a lookup field with an ID and read it back as a RecordReference, without and with expandLookups. |
 | `POST /records/field-values` | [05-records-write/field-values.ts](src/samples/05-records-write/field-values.ts) | `UrlValue`, `CreateFields`, `UpdateFields`, `records.create`, `records.update`, `records.get`, `records.deleteMany` | Value formats per field type (text, boolean, choice, UrlValue, number) and clearing with null. |
 
 ### Filters and sorting
@@ -155,7 +161,8 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 
 | Route | File | SDK APIs | Summary |
 |---|---|---|---|
-| `GET /identity/as-user/:personnelId` | [07-identity/as-user.ts](src/samples/07-identity/as-user.ts) | `data.asUser`, `AsUserDataApi`, `PermissionDeniedError` | data.asUser(personnelId): read records with another person's permissions (needs identity approval). |
+| `GET /identity/as-user/:personnelId` | [07-identity/as-user.ts](src/samples/07-identity/as-user.ts) | `data.asUser`, `AsUserDataApi`, `AsUserObjectClient`, `AsUserRecordsApi`, `PermissionDeniedError` | data.asUser(personnelId): read records with another person's permissions (needs identity approval). |
+| `GET /identity/as-user/:personnelId/aggregate` | [07-identity/as-user-aggregate.ts](src/samples/07-identity/as-user-aggregate.ts) | `data.asUser`, `records.aggregate`, `AsUserAggregateMetric`, `AsUserRecordsApi`, `AggregateResult` | data.asUser(personnelId).records.aggregate({ metrics }): order totals visible to another person, with the metrics asUser() allows. |
 | `GET /identity/as-system` | [07-identity/as-system.ts](src/samples/07-identity/as-system.ts) | `data.asSystem`, `DataApi`, `data.object` | data.asSystem(): compare the records visible to the caller with those visible to the system. |
 
 ### Project state
@@ -298,8 +305,25 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_recount_orders` | on enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Total: 81 routes, 4 record triggers and 2 background jobs.
+Total: 87 routes, 4 record triggers and 2 background jobs.
 <!-- catalog:end -->
+
+## Reading records
+
+Since `@cogover/sdk` 0.13.0 every `records.get`, `records.getMany` and `records.list` names the fields it
+returns, and the result type follows them:
+
+- `fields` is a list of field slugs or `"*"` on its own (every field the identity in use and the Project
+  policy may read). A read without it throws `ValidationError`:
+  `fields is required: pass field slugs or "*" (@cogover/sdk 0.13.0+)`. A version published with an older
+  SDK that reads without `fields` fails the same way on Cogover: update it and publish again.
+- A lookup comes back as `{ id, name: "", objectSlug }` and `system.createdBy.name` is `""`, unless the
+  read sets `expandLookups`: `true` for every lookup among `fields`, or `{ customer: ["tier"] }` to read
+  chosen fields of the linked record (`GET /records/expand-lookups`, `GET /records/expand-lookups/fields`).
+- To count or add up records, use `records.aggregate` instead of paging through `records.list`
+  (`GET /records/aggregate`, `GET /records/aggregate/by-customer`). `groupBy` takes choice, boolean,
+  lookup, number and date fields. A client from `data.asUser()` cannot group and computes only `count` on
+  `id` and `count`, `sum`, `avg`, `min` and `max` on number fields (`GET /identity/as-user/:personnelId/aggregate`).
 
 ## Record triggers on the local server
 
@@ -445,7 +469,9 @@ npm test
 
 `local/samples.test.ts` starts the local server without a Development Session and exercises the
 catalog and every sample that needs no Cogover capability (router, responses, invocation, error
-mapping, compatibility helper). The other tests belong to the starter's local tooling.
+mapping, compatibility helper). It also runs the record read samples (`fields`, `expandLookups`,
+`records.aggregate`, `asUser`) against a simulated capability bridge, which checks the requests the
+SDK sends but not Cogover's answers. The other tests belong to the starter's local tooling.
 
 ## Project layout
 

@@ -8,7 +8,8 @@ import { startLocalServer, type StartedLocalServer } from "./local-server.js";
 /**
  * Exercises the catalog and every sample that needs no Development Session (router, response,
  * invocation, error mapping, legacy helper). Samples that call Cogover capabilities need
- * `cogover-dev run` and are covered by README.md, not by this test.
+ * `cogover-dev run` and are covered by README.md; the record read samples are also run here against a
+ * simulated capability bridge, which checks the requests the SDK sends, not Cogover's answers.
  */
 const invocation: InvocationContext = Object.freeze({
     identity: "user",
@@ -257,6 +258,221 @@ describe("routes that need no Development Session", () => {
         assert.deepEqual(manifests.map(manifest => manifest.key), triggers.map(trigger => trigger.key));
         assert.equal(manifests.find(manifest => manifest.key === "sample_order_note_when_shipped")?.runWhen, "onEnter");
         assert.deepEqual(manifests.find(manifest => manifest.key === "sample_order_compute_total")?.writableFields, ["total"]);
+    });
+
+    test("no unexpected script errors were reported", () => {
+        assert.deepEqual(errors, []);
+    });
+});
+
+/** A capability request as the SDK sends it through the bridge. */
+interface BridgeRequest {
+    readonly operation: string;
+    readonly payload: Record<string, unknown>;
+}
+
+const CUSTOMER_FIELDS: Readonly<Record<string, unknown>> = { tier: "gold", credit_limit: 1000, email: "ada@example.com" };
+
+/** Answers the record reads of the samples like Cogover would, for a project policy that does not grant `note`. */
+function simulatedAnswer(request: BridgeRequest): unknown {
+    const payload = request.payload;
+    const system = (expand: unknown) => ({ createdAt: 1, updatedAt: 2, createdBy: { id: "PER1", name: expand === undefined ? "" : "Ada Lovelace" } });
+    const order = (id: string, fields: unknown, expand: unknown) => {
+        const linked = expand === true ? CUSTOMER_FIELDS
+            : typeof expand === "object" && expand !== null && Array.isArray((expand as { customer?: unknown }).customer)
+                ? Object.fromEntries(((expand as { customer: string[] }).customer).map(slug => [slug, CUSTOMER_FIELDS[slug] ?? null]))
+                : undefined;
+        const all: Record<string, unknown> = {
+            name: `Order ${id}`,
+            customer: linked === undefined
+                ? { id: "CUS1", name: "", objectSlug: "sample_customer" }
+                : { id: "CUS1", name: "Ada Ltd", objectSlug: "sample_customer", fields: linked },
+            status: "new", subtotal: 1500, discount: 0, total: 1500, ordered_at: 1_700_000_000_000, tags: [], files: [], note: "hidden",
+        };
+        const granted = fields === "*" ? Object.keys(all).filter(slug => slug !== "note") : fields as string[];
+        return { id, fields: Object.fromEntries(granted.map(slug => [slug, all[slug] ?? null])), system: system(expand) };
+    };
+    switch (request.operation) {
+        case "records.get":
+            return payload.objectSlug === "sample_customer"
+                ? { id: payload.id, fields: { name: "Ada Ltd" }, system: system(undefined) }
+                : order(String(payload.id), payload.fields, payload.expandLookups);
+        case "records.getMany": {
+            const ids = payload.ids as string[];
+            return {
+                records: ids.filter(id => id !== "CUS-HIDDEN").map(id => ({ id, fields: { name: `Customer ${id}` }, system: system(undefined) })),
+                missingIds: ids.filter(id => id === "CUS-HIDDEN"),
+            };
+        }
+        case "records.list":
+            return { items: ["ORD1", "ORD2"].map(id => order(id, payload.fields, payload.expandLookups)), total: 2 };
+        case "records.aggregate": {
+            const metrics = payload.metrics as Record<string, { op: string }>;
+            const values = Object.fromEntries(Object.entries(metrics).map(([name, metric]) => [
+                name, metric.op === "count" || metric.op === "countDistinct" ? 3 : metric.op === "min" ? null : 4500,
+            ]));
+            return payload.groupBy === undefined
+                ? { values }
+                : { groups: [{ key: { customer: "CUS1" }, values }, { key: { customer: "CUS-HIDDEN" }, values }], truncated: true };
+        }
+        case "records.create":
+            return "ORD-NEW";
+        default:
+            throw new Error(`unexpected capability ${request.operation}`);
+    }
+}
+
+describe("record read samples with a simulated capability bridge", () => {
+    type BridgeHost = typeof globalThis & { __cogoverBridgeCall?: (requestJson: string) => Promise<string> };
+    let local: StartedLocalServer;
+    let base: string;
+    const calls: BridgeRequest[] = [];
+    const errors: unknown[] = [];
+
+    before(async () => {
+        (globalThis as BridgeHost).__cogoverBridgeCall = async requestJson => {
+            const request = JSON.parse(requestJson) as BridgeRequest;
+            calls.push(request);
+            try {
+                return JSON.stringify({ ok: true, data: simulatedAnswer(request) });
+            } catch (error) {
+                return JSON.stringify({ ok: false, error: { code: "VALIDATION_ERROR", message: String(error) } });
+            }
+        };
+        local = await startLocalServer({
+            handler, triggers, projectSlug: "sdk_samples", port: 0, invocation, readRecord: async () => null,
+            onUnexpectedScriptError: error => { errors.push(error); },
+        });
+        base = local.url;
+    });
+    after(async () => {
+        await local.close();
+        delete (globalThis as BridgeHost).__cogoverBridgeCall;
+    });
+
+    /** Calls one route and returns its JSON body and the capability requests it made. */
+    const call = async (path: string, init?: RequestInit): Promise<{ body: Record<string, unknown>; requests: BridgeRequest[] }> => {
+        const start = calls.length;
+        const response = await fetch(`${base}${path}`, init);
+        assert.equal(response.status, 200, `${path} answered ${response.status}`);
+        return { body: await response.json() as Record<string, unknown>, requests: calls.slice(start) };
+    };
+
+    test("records.get sends the listed fields and does not expand lookups", async () => {
+        const { body, requests } = await call("/records/get/ORD1");
+        assert.deepEqual(requests.map(request => request.payload), [{
+            objectSlug: "sample_order", id: "ORD1", fields: ["name", "status", "total", "customer", "note", "files"],
+        }]);
+        assert.equal(body.customerId, "CUS1");
+        assert.deepEqual((body.fields as Record<string, unknown>).customer, { id: "CUS1", name: "", objectSlug: "sample_customer" });
+    });
+
+    test('fields: "*" returns what the policy grants', async () => {
+        const { body, requests } = await call("/records/fields-all/ORD1");
+        assert.equal(requests[0]?.payload.fields, "*");
+        assert.deepEqual(body.notGranted, ["note"]);
+        assert.equal((body.returnedFields as string[]).length, 9);
+    });
+
+    test("expandLookups: true fills in the customer and createdBy names", async () => {
+        const { body, requests } = await call("/records/expand-lookups?limit=2");
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0]?.operation, "records.list");
+        assert.deepEqual(requests[0]?.payload.fields, ["name", "total", "customer"]);
+        assert.equal(requests[0]?.payload.expandLookups, true);
+        assert.equal(requests[0]?.payload.limit, 2);
+        const first = (body.items as Record<string, unknown>[])[0];
+        assert.deepEqual(first?.customer, { id: "CUS1", name: "Ada Ltd", tier: "gold", email: "ada@example.com", expanded: true });
+        assert.deepEqual(first?.createdBy, { id: "PER1", name: "Ada Lovelace" });
+    });
+
+    test("expandLookups by lookup reads only the named linked fields", async () => {
+        const { body, requests } = await call("/records/expand-lookups/fields");
+        assert.deepEqual(requests[0]?.payload.expandLookups, { customer: ["tier", "credit_limit"] });
+        assert.deepEqual(requests[0]?.payload.where, {
+            kind: "condition", field: "status", operator: "in", value: ["new", "confirmed"],
+        });
+        assert.equal(body.overLimit, 2);
+        assert.deepEqual((body.rows as Record<string, unknown>[])[0], {
+            id: "ORD1", name: "Order ORD1", total: 1500, customer: "Ada Ltd", tier: "gold", creditLimit: 1000, overLimit: true,
+        });
+    });
+
+    test("records.aggregate without groups sends { op, field } metrics", async () => {
+        const { body, requests } = await call("/records/aggregate?status=confirmed");
+        assert.deepEqual(requests.map(request => request.payload), [{
+            objectSlug: "sample_order",
+            where: { kind: "condition", field: "status", operator: "=", value: "confirmed" },
+            metrics: {
+                orders: { op: "count", field: "id" },
+                withCustomer: { op: "count", field: "customer" },
+                customers: { op: "countDistinct", field: "customer" },
+                revenue: { op: "sum", field: "total" },
+                averageOrder: { op: "avg", field: "total" },
+                firstOrderedAt: { op: "min", field: "ordered_at" },
+                lastOrderedAt: { op: "max", field: "ordered_at" },
+            },
+        }]);
+        assert.equal((body.values as Record<string, unknown>).firstOrderedAt, null);
+        assert.equal(body.summary, "3 orders, revenue 4500, average 4500");
+
+        const invalid = await fetch(`${base}/records/aggregate?status=paid`);
+        assert.equal(invalid.status, 400);
+    });
+
+    test("records.aggregate with groupBy returns truncated groups and resolves customer names", async () => {
+        const { body, requests } = await call("/records/aggregate/by-customer?limit=2");
+        assert.equal(requests.length, 2);
+        assert.deepEqual(requests[0]?.payload.groupBy, ["customer"]);
+        assert.equal(requests[0]?.payload.limit, 2);
+        assert.deepEqual(requests[1]?.payload, { objectSlug: "sample_customer", ids: ["CUS1", "CUS-HIDDEN"], fields: ["name"] });
+        assert.equal(body.truncated, true);
+        assert.deepEqual((body.customers as Record<string, unknown>[]).map(row => [row.customerId, row.name, row.orders]), [
+            ["CUS1", "Customer CUS1", 3],
+            ["CUS-HIDDEN", null, 3],
+        ]);
+        assert.equal((await fetch(`${base}/records/aggregate/by-customer?limit=0`)).status, 400);
+    });
+
+    test("asUser reads as the delegated person", async () => {
+        const { body, requests } = await call("/identity/as-user/PER9");
+        assert.deepEqual(requests.map(request => [request.operation, request.payload.identity]), [
+            ["records.list", { kind: "user", personnelId: "PER9" }],
+        ]);
+        assert.equal(body.visibleTotal, 2);
+    });
+
+    test("asUser aggregates with the metrics allowed for a delegated person", async () => {
+        const { body, requests } = await call("/identity/as-user/PER9/aggregate");
+        assert.deepEqual(requests.map(request => request.payload), [{
+            identity: { kind: "user", personnelId: "PER9" },
+            objectSlug: "sample_order",
+            where: { kind: "condition", field: "status", operator: "!=", value: "cancelled" },
+            metrics: {
+                orders: { op: "count", field: "id" },
+                withTotal: { op: "count", field: "total" },
+                revenue: { op: "sum", field: "total" },
+                averageOrder: { op: "avg", field: "total" },
+                smallestOrder: { op: "min", field: "total" },
+                largestOrder: { op: "max", field: "total" },
+            },
+        }]);
+        assert.deepEqual(body, {
+            personnelId: "PER9", orders: 3, withTotal: 3, revenue: 4500, averageOrder: 4500, smallestOrder: null, largestOrder: 4500,
+        });
+    });
+
+    test("a lookup written by ID reads back with an empty name unless expanded", async () => {
+        const { body, requests } = await call("/records/lookup-reference", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ customerId: "CUS1", name: "Order for Ada" }),
+        });
+        assert.deepEqual(requests.map(request => request.operation), ["records.get", "records.create", "records.get", "records.get"]);
+        assert.equal(requests[2]?.payload.expandLookups, undefined);
+        assert.deepEqual(requests[3]?.payload.expandLookups, { customer: ["tier"] });
+        assert.deepEqual(body.customer, { id: "CUS1", name: "", objectSlug: "sample_customer" });
+        assert.deepEqual(body.customerExpanded, { id: "CUS1", name: "Ada Ltd", objectSlug: "sample_customer", fields: { tier: "gold" } });
+        assert.equal(body.sameCustomer, true);
     });
 
     test("no unexpected script errors were reported", () => {

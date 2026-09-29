@@ -20,6 +20,11 @@ import recordsGet from "./04-records-read/get.js";
 import recordsGetMany from "./04-records-read/get-many.js";
 import recordsList from "./04-records-read/list.js";
 import recordsListPaging from "./04-records-read/list-paging.js";
+import recordsFieldsAll from "./04-records-read/fields-all.js";
+import recordsExpandLookups from "./04-records-read/expand-lookups.js";
+import recordsExpandLookupsFields from "./04-records-read/expand-lookups-fields.js";
+import recordsAggregate from "./04-records-read/aggregate.js";
+import recordsAggregateGroup from "./04-records-read/aggregate-group.js";
 
 import recordsCreate from "./05-records-write/create.js";
 import recordsUpdate from "./05-records-write/update.js";
@@ -37,6 +42,7 @@ import filtersSystemFields from "./06-filters/system-fields.js";
 import filtersRawExpression from "./06-filters/raw-expression.js";
 
 import identityAsUser from "./07-identity/as-user.js";
+import identityAsUserAggregate from "./07-identity/as-user-aggregate.js";
 import identityAsSystem from "./07-identity/as-system.js";
 
 import stateGet from "./08-state/get.js";
@@ -128,6 +134,11 @@ export const samples: readonly Sample[] = [
     recordsGetMany,
     recordsList,
     recordsListPaging,
+    recordsFieldsAll,
+    recordsExpandLookups,
+    recordsExpandLookupsFields,
+    recordsAggregate,
+    recordsAggregateGroup,
 
     recordsCreate,
     recordsUpdate,
@@ -145,6 +156,7 @@ export const samples: readonly Sample[] = [
     filtersRawExpression,
 
     identityAsUser,
+    identityAsUserAggregate,
     identityAsSystem,
 
     stateGet,

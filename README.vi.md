@@ -30,6 +30,7 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
 ## Yêu cầu
 
 - Node.js 20 trở lên và Cogover Dev CLI 0.13 trở lên (`npm install --global @cogover/dev-cli`).
+- TypeScript 5.0 trở lên, phiên bản mà `@cogover/sdk` 0.13 yêu cầu; `npm install` cài sẵn phiên bản phù hợp.
 - Một Workspace Cogover mà bạn có quyền tạo Object và tạo Project Custom Backend Module.
 - Project key để tạo Development Session khi phát triển local, và Workspace API key nếu publish.
 
@@ -121,10 +122,15 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 
 | Route | File | SDK API | Tóm tắt |
 |---|---|---|---|
-| `GET /records/get/:recordId` | [04-records-read/get.ts](src/samples/04-records-read/get.ts) | `data.object`, `records.get`, `GetRecordOptions`, `CogoverRecord`, `ObjectClient`, `FileValue` | records.get(id, { fields }): read one record; null when missing or not visible to the caller. |
+| `GET /records/get/:recordId` | [04-records-read/get.ts](src/samples/04-records-read/get.ts) | `data.object`, `records.get`, `GetRecordOptions`, `FieldSelection`, `SelectedFields`, `CogoverRecord`, `ObjectClient`, `FileValue` | records.get(id, { fields }): read the listed fields of one record; null when missing or not visible to the caller. |
 | `POST /records/get-many` | [04-records-read/get-many.ts](src/samples/04-records-read/get-many.ts) | `records.getMany`, `GetManyOptions`, `GetManyResult` | records.getMany(ids, { fields }): read up to 200 records in one call and index them by ID. |
 | `GET /records/list` | [04-records-read/list.ts](src/samples/04-records-read/list.ts) | `records.list`, `ListOptions`, `RecordPage`, `RecordsApi` | records.list({ fields, orderBy, limit, cursor }): one page of records with total and nextCursor. |
 | `GET /records/list-paging` | [04-records-read/list-paging.ts](src/samples/04-records-read/list-paging.ts) | `records.list`, `RecordPage.nextCursor`, `CogoverRecordId` | Follow records.list() cursors page by page until nextCursor is absent (bounded by maxPages). |
+| `GET /records/fields-all/:recordId` | [04-records-read/fields-all.ts](src/samples/04-records-read/fields-all.ts) | `records.get`, `fields: "*"`, `FieldSelection`, `CogoverRecord` | records.get(id, { fields: "*" }): read every field the identity and the project policy may read. |
+| `GET /records/expand-lookups` | [04-records-read/expand-lookups.ts](src/samples/04-records-read/expand-lookups.ts) | `records.list`, `expandLookups: true`, `RecordReference`, `RecordReference.fields` | records.list({ fields, expandLookups: true }): orders with their customer's name and fields, and createdBy.name. |
+| `GET /records/expand-lookups/fields` | [04-records-read/expand-lookups-fields.ts](src/samples/04-records-read/expand-lookups-fields.ts) | `records.list`, `expandLookups`, `ExpandLookups`, `SelectedFields`, `RecordReference.fields` | records.list({ fields, expandLookups: { customer: [...] } }): expand one lookup with chosen fields of the linked record. |
+| `GET /records/aggregate` | [04-records-read/aggregate.ts](src/samples/04-records-read/aggregate.ts) | `records.aggregate`, `AggregateOptions`, `AggregateMetric`, `AggregateResult`, `AggregateValues` | records.aggregate({ where, metrics }): count, countDistinct, sum, avg, min and max over the matching orders. |
+| `GET /records/aggregate/by-customer` | [04-records-read/aggregate-group.ts](src/samples/04-records-read/aggregate-group.ts) | `records.aggregate`, `GroupedAggregateOptions`, `AggregateGroupResult`, `AggregateGroup`, `AggregateGroupKey` | records.aggregate({ groupBy, metrics, limit }): orders and revenue per customer, with truncated when there are more groups. |
 
 ### Record: ghi
 
@@ -136,7 +142,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `POST /records/batch-update` | [05-records-write/batch-update.ts](src/samples/05-records-write/batch-update.ts) | `records.batchUpdate`, `BatchUpdateItem` | records.batchUpdate(items): set a status on up to 200 records in one call. |
 | `POST /records/upsert` | [05-records-write/upsert.ts](src/samples/05-records-write/upsert.ts) | `records.upsertByUniqueField`, `UpsertFields`, `UpsertResult` | records.upsertByUniqueField("email", fields): update the matching customer or create it. |
 | `DELETE /records/delete-many` | [05-records-write/delete-many.ts](src/samples/05-records-write/delete-many.ts) | `records.deleteMany`, `DeleteResult`, `CogoverApiError.r` | records.deleteMany(ids): delete orders (or customers with object: "sample_customer"); compare deleted with the request. |
-| `POST /records/lookup-reference` | [05-records-write/lookup-reference.ts](src/samples/05-records-write/lookup-reference.ts) | `RecordReference`, `records.create`, `records.get` | Write a lookup field with an ID and read it back as a RecordReference { id, name, objectSlug }. |
+| `POST /records/lookup-reference` | [05-records-write/lookup-reference.ts](src/samples/05-records-write/lookup-reference.ts) | `RecordReference`, `records.create`, `records.get`, `expandLookups` | Write a lookup field with an ID and read it back as a RecordReference, without and with expandLookups. |
 | `POST /records/field-values` | [05-records-write/field-values.ts](src/samples/05-records-write/field-values.ts) | `UrlValue`, `CreateFields`, `UpdateFields`, `records.create`, `records.update`, `records.get`, `records.deleteMany` | Value formats per field type (text, boolean, choice, UrlValue, number) and clearing with null. |
 
 ### Filter và sắp xếp
@@ -153,7 +159,8 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 
 | Route | File | SDK API | Tóm tắt |
 |---|---|---|---|
-| `GET /identity/as-user/:personnelId` | [07-identity/as-user.ts](src/samples/07-identity/as-user.ts) | `data.asUser`, `AsUserDataApi`, `PermissionDeniedError` | data.asUser(personnelId): read records with another person's permissions (needs identity approval). |
+| `GET /identity/as-user/:personnelId` | [07-identity/as-user.ts](src/samples/07-identity/as-user.ts) | `data.asUser`, `AsUserDataApi`, `AsUserObjectClient`, `AsUserRecordsApi`, `PermissionDeniedError` | data.asUser(personnelId): read records with another person's permissions (needs identity approval). |
+| `GET /identity/as-user/:personnelId/aggregate` | [07-identity/as-user-aggregate.ts](src/samples/07-identity/as-user-aggregate.ts) | `data.asUser`, `records.aggregate`, `AsUserAggregateMetric`, `AsUserRecordsApi`, `AggregateResult` | data.asUser(personnelId).records.aggregate({ metrics }): order totals visible to another person, with the metrics asUser() allows. |
 | `GET /identity/as-system` | [07-identity/as-system.ts](src/samples/07-identity/as-system.ts) | `data.asSystem`, `DataApi`, `data.object` | data.asSystem(): compare the records visible to the caller with those visible to the system. |
 
 ### Project state
@@ -296,8 +303,25 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_recount_orders` | theo enqueue | [recount-orders.ts](src/jobs/recount-orders.ts) |
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 
-Tổng cộng: 81 route, 4 record trigger và 2 background job.
+Tổng cộng: 87 route, 4 record trigger và 2 background job.
 <!-- catalog:end -->
+
+## Đọc record
+
+Từ `@cogover/sdk` 0.13.0, mọi lệnh `records.get`, `records.getMany` và `records.list` phải nêu các field
+cần trả về, và kiểu kết quả thu hẹp theo đúng các field đó:
+
+- `fields` là danh sách slug field, hoặc riêng chuỗi `"*"` (mọi field mà danh tính đang dùng và policy của
+  Project được đọc). Đọc mà không truyền `fields` sẽ ném `ValidationError`:
+  `fields is required: pass field slugs or "*" (@cogover/sdk 0.13.0+)`. Version đã publish bằng SDK cũ mà
+  đọc không có `fields` cũng lỗi như vậy trên Cogover: sửa code rồi publish lại.
+- Field lookup trả về `{ id, name: "", objectSlug }` và `system.createdBy.name` là `""`, trừ khi lệnh đọc
+  đặt `expandLookups`: `true` để mở rộng mọi lookup trong `fields`, hoặc `{ customer: ["tier"] }` để đọc
+  các field được chọn của record liên kết (`GET /records/expand-lookups`, `GET /records/expand-lookups/fields`).
+- Để đếm hoặc cộng dồn record, dùng `records.aggregate` thay vì duyệt từng trang `records.list`
+  (`GET /records/aggregate`, `GET /records/aggregate/by-customer`). `groupBy` nhận field choice, boolean,
+  lookup, số và ngày. Client của `data.asUser()` không group được và chỉ tính `count` trên `id` cùng `count`,
+  `sum`, `avg`, `min`, `max` trên field số (`GET /identity/as-user/:personnelId/aggregate`).
 
 ## Chạy record trigger trên local server
 
@@ -441,7 +465,9 @@ npm test
 
 `local/samples.test.ts` khởi chạy local server không cần Development Session và kiểm tra catalog
 cùng mọi sample không cần capability của Cogover (router, response, invocation, ánh xạ lỗi, helper
-tương thích). Các test còn lại thuộc bộ công cụ local của starter.
+tương thích). File này cũng chạy các sample đọc record (`fields`, `expandLookups`, `records.aggregate`,
+`asUser`) với một capability bridge giả lập: test kiểm tra request mà SDK gửi đi, không kiểm tra câu trả
+lời của Cogover. Các test còn lại thuộc bộ công cụ local của starter.
 
 ## Cấu trúc project
 

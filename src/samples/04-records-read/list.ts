@@ -1,10 +1,14 @@
-import type { ListOptions, RecordPage, RecordsApi, WorkspaceObjects } from "@cogover/sdk";
+import type { ListOptions, RecordPage, RecordsApi, SelectedFields, WorkspaceObjects } from "@cogover/sdk";
 import { defineSample } from "../../sample.js";
 
 type OrderFields = WorkspaceObjects["sample_order"];
 
+const LIST_FIELDS = ["name", "status", "total", "ordered_at"] as const;
+type OrderRow = SelectedFields<OrderFields, typeof LIST_FIELDS>;
+
 /**
- * Lists records with a field projection, sorting and a page size. The page carries `total` and an
+ * Lists records with the required `fields`, sorting and a page size. `orderBy` and `where` may use
+ * fields that are not in `fields`, such as the system field `created` below. The page carries `total` and an
  * opaque `nextCursor`. Cogover may return a cursor with the last page as well, so a loop stops when
  * `nextCursor` is absent, which can be one empty page later (see `list-paging.ts`).
  */
@@ -22,15 +26,15 @@ export default defineSample({
         const cursor = typeof request.query.cursor === "string" ? request.query.cursor : undefined;
 
         const orders = data.object("sample_order");
-        const options: ListOptions<OrderFields> = {
-            fields: ["name", "status", "total", "ordered_at"],
+        const options: ListOptions<OrderFields, typeof LIST_FIELDS> = {
+            fields: LIST_FIELDS,
             orderBy: [orders.fields.created.desc()],
             limit,
             // `exactOptionalPropertyTypes`: only add `cursor` when there is one.
             ...(cursor === undefined ? {} : { cursor }),
         };
         const records: RecordsApi<OrderFields> = orders.records;
-        const page: RecordPage<OrderFields> = await records.list(options);
+        const page: RecordPage<OrderRow> = await records.list(options);
         return {
             total: page.total,
             count: page.items.length,

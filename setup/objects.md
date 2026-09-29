@@ -40,6 +40,10 @@ search the samples for the old slug.
 The Project's approved identity policy decides what the samples may do:
 
 - Read and write both Objects with the caller's identity (`data.object(...)`).
+- `expandLookups` reads `sample_customer` through the `customer` lookup of `sample_order` with the same
+  identity, so the policy must grant reading `sample_customer`; `GET /records/expand-lookups/fields`
+  names `tier` and `credit_limit`, which must be granted too. `records.aggregate` needs every field it
+  uses in `where`, `groupBy` and `metrics` to be granted (`status`, `customer`, `total`, `ordered_at`).
 - `data.asUser(personnelId)` and `data.asSystem()` need explicit approval; without it the two
   identity samples answer with `IDENTITY_NOT_GRANTED` instead of failing.
 - Outbound `fetch` needs the destinations `registry.npmjs.org` and `httpbin.org` to be allowed.

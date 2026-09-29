@@ -39,8 +39,8 @@ export default defineSample<Input>({
         // `null` clears a field; other fields keep their values.
         await customers.records.update(id, { note: null, tier: "gold" });
 
-        // Without `fields`, a read also carries system lookups such as `updated_by` that `workspace.d.ts`
-        // does not declare; a projection keeps the result equal to the declared `CustomerFields`.
+        // Listing every declared field makes the result type equal to `CustomerFields`; `fields: "*"` would
+        // too, but it can also return fields that the policy grants and `workspace.d.ts` does not declare.
         const stored = await customers.records.get(id, {
             fields: ["name", "email", "phone", "tier", "is_active", "website", "credit_limit", "note"],
         });
