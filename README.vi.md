@@ -319,6 +319,8 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 |---|---|---|---|
 | `POST /agents/start` | [26-agents/start.ts](src/samples/26-agents/start.ts) | `context.agents`, `AgentsApi`, `agents.start`, `AgentStartOptions`, `AgentStartResult`, `AgentRecordReference`, `AgentResultCompletion`, `s.object` | agents.start(agentId, { instruction, variables, records, resultSchema, runAs, approvalPolicy, onResult }): run an AI Agent in the background. |
 | `GET /agents/get/:runId` | [26-agents/get.ts](src/samples/26-agents/get.ts) | `agents.get`, `AgentRunState` | agents.get<TResult>(runId): status, text answer, structured result and error of an agent run this project started. |
+| `POST /agents/deliver` | [26-agents/deliver.ts](src/samples/26-agents/deliver.ts) | `agents.start`, `AgentStartOptions.deliverTo`, `AgentDeliveryTarget`, `AgentResultCompletion`, `CogoverApiError` | agents.start(agentId, { instruction, deliverTo: { personnelId, conversation, title }, onResult }): let an AI Agent send a chat message to a personnel. |
+| `GET /agents/delivery/:runId` | [26-agents/delivery.ts](src/samples/26-agents/delivery.ts) | `agents.get`, `AgentRunState.delivery`, `AgentDelivery` | agents.get(runId).delivery: whether the chat message of a deliverTo run was SENT, NOT_SENT, BLOCKED or FAILED, and in which conversation. |
 
 ### Record trigger
 
@@ -337,6 +339,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 | `sample_process_completed` | theo enqueue | [process-completed.ts](src/jobs/process-completed.ts) |
 | `sample_agent_result` | theo enqueue | [agent-result.ts](src/jobs/agent-result.ts) |
+| `sample_agent_delivery` | theo enqueue | [agent-delivery.ts](src/jobs/agent-delivery.ts) |
 
 ### Custom Module Actions
 
@@ -345,7 +348,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
 | `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
 
-Tổng cộng: 96 route, 4 record trigger, 4 background job và 2 Custom Module Action.
+Tổng cộng: 98 route, 4 record trigger, 5 background job và 2 Custom Module Action.
 <!-- catalog:end -->
 
 ## Đọc record
@@ -502,6 +505,27 @@ reason `PROCESSES_NOT_ALLOWED` hoặc `AGENTS_NOT_ALLOWED`:
   theo dõi bằng `GET /processes/get/:instanceId` hoặc `GET /agents/get/:runId`. Truyền `idempotencyKey`
   để lần gọi lặp lại trả về instance hoặc lượt chạy đầu tiên với `duplicate: true`.
 
+`POST /agents/deliver` (SDK 0.16.0) khởi chạy một lượt chạy có `deliverTo`, cho phép agent gửi tin nhắn
+chat cho một nhân sự; tin nhắn đến AI chat của agent với nhân sự đó:
+
+- Body nhận `agentId` và, không bắt buộc, `personnelId` (bỏ trống thì là người gọi, nên chạy thử
+  sample là nhắn cho chính bạn), `conversation` (`"new"` là mặc định, hoặc `"latest"` để nối tiếp hội
+  thoại gần nhất của agent với người nhận), `title` (tên hội thoại mà lượt chạy mở) và `topic` (điều
+  agent cần nói với người nhận). Agent tự viết tin nhắn và có thể quyết định không gửi.
+- `GET /agents/delivery/:runId` đọc `delivery` của lượt chạy: `status` là `SENT`, `NOT_SENT`, `BLOCKED`
+  hoặc `FAILED`, kèm `errorCode`, `chatSessionId`, `conversationId` và `newConversation`. Giá trị là
+  `null` với lượt chạy không có `deliverTo` và có thể là `null` khi lượt chạy còn đang diễn ra. Job
+  `sample_agent_delivery` nhận cùng giá trị trong `agentRun.delivery` và lưu tại
+  `GET /state/get/last-agent-delivery`.
+- Người nhận phải là nhân sự của Workspace, được dùng agent và có seat AI Agent. Nếu không, lệnh start
+  bị từ chối và route trả về `r: 1016` với code `RECIPIENT_NOT_FOUND`, `RECIPIENT_ACCESS_DENIED` hoặc
+  `RECIPIENT_AI_SEAT_REQUIRED` (`r: 1017` với `DELIVERY_UNAVAILABLE` khi tạm thời chưa kiểm tra được
+  người nhận); không có lượt chạy nào được tạo và không có gì được gửi. Identity policy không cần khai
+  báo gì cho người nhận.
+- Tin nhắn là thật, kể cả trong Development Session, và Cogover giới hạn số tin một agent được gửi cho
+  một nhân sự trong một lượt chạy và trong một ngày. Hãy đưa người nhận vào `idempotencyKey`: key lặp
+  lại trả về lượt chạy đầu tiên kể cả khi `deliverTo` khác.
+
 ## Entry point một endpoint
 
 `src/entries/define-script.ts` minh họa `defineScript`, kiểu entry point cho project chỉ có một
@@ -525,8 +549,9 @@ cogover-dev activate <version-id>
 của Object demo, `identity/as-system` đọc mà không áp quyền record của người gọi, các sample push,
 thông báo và email tới người thật, các trigger chạy cho mọi lần ghi vào `sample_order`, và job theo
 lịch hủy các `sample_order` cũ mỗi đêm trong lúc version còn active. Hai action hiện trong Process
-Builder và AI Agent Builder với mọi thành viên của Workspace, còn các sample Process và AI Agent tạo
-instance và lượt chạy thật. Hãy publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi
+Builder và AI Agent Builder với mọi thành viên của Workspace, các sample Process và AI Agent tạo
+instance và lượt chạy thật, còn `POST /agents/deliver` khiến AI Agent gửi tin nhắn chat thật cho một nhân
+sự. Hãy publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi
 `src/samples/index.ts`, `src/triggers/index.ts` và `src/actions/index.ts`.
 
 ## Cập nhật theo mỗi bản phát hành SDK

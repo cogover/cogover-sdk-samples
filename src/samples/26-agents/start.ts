@@ -23,9 +23,10 @@ interface Input {
 }
 
 /**
- * Asks an AI Agent for advice about a customer. `agents.start` only creates the run: each run is a new
- * conversation that reads the customer record, answers with a result matching `customerAdviceSchema`, and ends
- * by enqueuing the job `sample_agent_result` named in `onResult`. `GET /agents/get/:runId` reads it meanwhile.
+ * Asks an AI Agent for advice about a customer. `agents.start` only creates the run: each run works in a new
+ * session of its own, which no person sees. It reads the customer record, answers with a result matching
+ * `customerAdviceSchema`, and ends by enqueuing the job `sample_agent_result` named in `onResult`.
+ * `GET /agents/get/:runId` reads it meanwhile. To let a run reach a person, see `POST /agents/deliver`.
  *
  * The identity policy needs an `agents` section that allows the agent (and counts `maxRunsPerDay`); without it
  * every call answers `AGENTS_NOT_ALLOWED`. `runAs: "caller"` runs the agent as the caller, `"agent"` with its own

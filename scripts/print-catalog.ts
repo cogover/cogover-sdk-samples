@@ -49,6 +49,7 @@ const JOB_FILES: Readonly<Record<string, string>> = {
     sample_cancel_stale_orders: "src/jobs/cancel-stale-orders.ts",
     sample_process_completed: "src/jobs/process-completed.ts",
     sample_agent_result: "src/jobs/agent-result.ts",
+    sample_agent_delivery: "src/jobs/agent-delivery.ts",
 };
 
 const ACTION_FILES: Readonly<Record<string, string>> = {

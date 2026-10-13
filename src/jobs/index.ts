@@ -1,4 +1,5 @@
 import type { JobDefinition, JobManifest, JobSchedule } from "@cogover/sdk";
+import { agentDelivery } from "./agent-delivery.js";
 import { agentResult } from "./agent-result.js";
 import { cancelStaleOrders } from "./cancel-stale-orders.js";
 import { processCompleted } from "./process-completed.js";
@@ -13,11 +14,13 @@ import { recountOrders } from "./recount-orders.js";
  *
  * `sample_process_completed` and `sample_agent_result` are the jobs named by `onComplete` of `processes.start`
  * and `onResult` of `agents.start`: Cogover enqueues them when the Process instance or the agent run ends.
+ * `sample_agent_delivery` is the `onResult` job of `POST /agents/deliver`: it reads what happened to the chat
+ * message of a run started with `deliverTo`.
  *
  * Each `JobDefinition` carries `key`, the normalized `config` (`JobManifest`, every default applied:
  * `timeoutMs: 30000`, `maxAttempts: 5`, `schedule.timezone: "UTC"`) and a handler reserved for Cogover.
  */
-export const jobs: readonly JobDefinition[] = [recountOrders, cancelStaleOrders, processCompleted, agentResult];
+export const jobs: readonly JobDefinition[] = [recountOrders, cancelStaleOrders, processCompleted, agentResult, agentDelivery];
 
 export const jobManifests: readonly JobManifest[] = jobs.map(job => job.config);
 

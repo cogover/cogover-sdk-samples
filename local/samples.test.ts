@@ -327,6 +327,14 @@ interface BridgeRequest {
 const CUSTOMER_FIELDS: Readonly<Record<string, unknown>> = { tier: "gold", credit_limit: 1000, email: "ada@example.com" };
 const CUSTOMER_RECORD: Readonly<Record<string, unknown>> = { name: "Ada Ltd", ...CUSTOMER_FIELDS, is_active: true, note: null };
 
+/** Recipients of `deliverTo` that the simulated Cogover refuses, with the code it answers. */
+const RECIPIENT_REFUSALS: Readonly<Record<string, string>> = {
+    "PER-MISSING": "RECIPIENT_NOT_FOUND",
+    "PER-NO-ACCESS": "RECIPIENT_ACCESS_DENIED",
+    "PER-NO-SEAT": "RECIPIENT_AI_SEAT_REQUIRED",
+    "PER-LATER": "DELIVERY_UNAVAILABLE",
+};
+
 /** Thrown by `simulatedAnswer` to answer a capability request with this bridge error. */
 class SimulatedFailure extends Error {
     constructor(readonly code: string, readonly details: Record<string, unknown>) {
@@ -370,14 +378,31 @@ function simulatedAnswer(request: BridgeRequest): unknown {
         case "processes.get":
             if (payload.instanceId === "PINS-OTHER") throw new SimulatedFailure("NOT_FOUND", { resource: "process_instance", resourceId: "PINS-OTHER" });
             return { instanceId: payload.instanceId, processId: "PRC1", processInfoId: "PI1", state: "COMPLETED", startedAt: 10, finishedAt: 20 };
-        case "agents.start":
+        case "agents.start": {
             if (payload.agentId === "AG-NOT-ALLOWED") throw new SimulatedFailure("PERMISSION_DENIED", { reason: "AGENTS_NOT_ALLOWED" });
-            return { runId: "AGR1", duplicate: false };
-        case "agents.get":
-            return {
+            const recipient = (payload.deliverTo as { personnelId?: string } | undefined)?.personnelId;
+            // Cogover checks the recipient of deliverTo when the run starts and refuses with a code of its own.
+            const refusal = recipient === undefined ? undefined : RECIPIENT_REFUSALS[recipient];
+            if (refusal !== undefined) throw new SimulatedFailure(refusal, { upstreamCode: refusal });
+            return { runId: recipient === undefined ? "AGR1" : "AGR-DELIVER", duplicate: false };
+        }
+        case "agents.get": {
+            const run = {
                 runId: payload.runId, status: "COMPLETED", text: "Call Ada this week.",
                 result: { summary: "Three orders, all paid.", nextStep: "call", confidence: 0.8 }, error: null,
             };
+            switch (payload.runId) {
+                case "AGR-DELIVER":
+                    return { ...run, delivery: { status: "SENT", errorCode: null, chatSessionId: "ChatSession-1", conversationId: "CONV1", newConversation: true } };
+                case "AGR-BLOCKED":
+                    return { ...run, delivery: { status: "BLOCKED", errorCode: "RECIPIENT_RATE_LIMITED", chatSessionId: null, conversationId: null, newConversation: false } };
+                case "AGR-RUNNING":
+                    return { ...run, status: "RUNNING", text: null, result: null, delivery: null };
+                default:
+                    // A run started without deliverTo: an older Cogover leaves the member out, which the SDK reads as null.
+                    return run;
+            }
+        }
         case "records.getMany": {
             const ids = payload.ids as string[];
             return {
@@ -703,6 +728,79 @@ describe("record read samples with a simulated capability bridge", () => {
         assert.equal(body.finished, true);
         assert.equal(body.nextStep, "call");
         assert.deepEqual(body.error, null);
+    });
+
+    test("agents.start with deliverTo names the recipient, the conversation and the onResult job", async () => {
+        // Without personnelId the caller is the recipient, and the SDK applies the default conversation "new".
+        const self = await postJson("/agents/deliver", { agentId: "AG1" });
+        assert.deepEqual(self.requests.map(request => request.operation), ["agents.start"]);
+        const payload = self.requests[0]?.payload as Record<string, unknown>;
+        assert.deepEqual(payload.deliverTo, { personnelId: "PER1", conversation: "new" });
+        assert.equal(payload.runAs, "caller");
+        assert.equal(payload.approvalPolicy, "deny");
+        assert.match(String(payload.instruction), /^Send the recipient exactly one short chat message/);
+        assert.deepEqual(payload.onResult, { job: "sample_agent_delivery", payload: { personnelId: "PER1" } });
+        assert.deepEqual(self.body, {
+            runId: "AGR-DELIVER", duplicate: false, recipient: "PER1", conversation: "new", next: "GET /agents/delivery/AGR-DELIVER",
+        });
+
+        const latest = await postJson("/agents/deliver", {
+            agentId: "AG1", personnelId: "PER2", conversation: "latest", title: "SDK sample", topic: "Order SO-1024 waits for approval.",
+            idempotencyKey: "remind:PER2:SO-1024", onResult: false,
+        });
+        const sent = latest.requests[0]?.payload as Record<string, unknown>;
+        assert.deepEqual(sent.deliverTo, { personnelId: "PER2", conversation: "latest", title: "SDK sample" });
+        assert.match(String(sent.instruction), /Topic: Order SO-1024 waits for approval\.$/);
+        assert.equal(sent.idempotencyKey, "remind:PER2:SO-1024");
+        assert.equal(sent.onResult, undefined);
+        assert.equal(latest.body.conversation, "latest");
+    });
+
+    test("a start refused because of the recipient keeps its own code", async () => {
+        for (const [personnelId, code] of Object.entries({
+            "PER-MISSING": "RECIPIENT_NOT_FOUND", "PER-NO-ACCESS": "RECIPIENT_ACCESS_DENIED", "PER-NO-SEAT": "RECIPIENT_AI_SEAT_REQUIRED",
+        })) {
+            const { body } = await postJson("/agents/deliver", { agentId: "AG1", personnelId });
+            assert.equal(body.r, 1016, personnelId);
+            assert.equal(body.code, code);
+            assert.equal(body.upstreamCode, code);
+            assert.equal(body.recipient, personnelId);
+        }
+        const later = await postJson("/agents/deliver", { agentId: "AG1", personnelId: "PER-LATER" });
+        assert.deepEqual(later.body, {
+            r: 1017, msg: "The recipient could not be checked right now; try again later.",
+            code: "DELIVERY_UNAVAILABLE", upstreamCode: "DELIVERY_UNAVAILABLE",
+        });
+        // A refusal about the project or the caller is still a PermissionDeniedError, never a RECIPIENT_ code.
+        const denied = await postJson("/agents/deliver", { agentId: "AG-NOT-ALLOWED" });
+        assert.deepEqual(denied.body, { r: 1003, msg: "This project or caller may not run the agent.", reason: "AGENTS_NOT_ALLOWED" });
+        // The sample rejects a conversation the SDK would reject, before anything is sent.
+        const invalid = await fetch(`${base}/agents/deliver`, {
+            method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agentId: "AG1", conversation: "oldest" }),
+        });
+        assert.equal(invalid.status, 400);
+    });
+
+    test("agents.get reports the delivery of a deliverTo run", async () => {
+        const sent = await call("/agents/delivery/AGR-DELIVER");
+        assert.deepEqual(sent.requests, [{ version: 1, operation: "agents.get", payload: { runId: "AGR-DELIVER" } }]);
+        assert.deepEqual(sent.body.delivery, {
+            status: "SENT", errorCode: null, chatSessionId: "ChatSession-1", conversationId: "CONV1", newConversation: true,
+        });
+        assert.equal(sent.body.outcome, "The recipient received the message in a new conversation.");
+        assert.equal(sent.body.finished, true);
+
+        const blocked = await call("/agents/delivery/AGR-BLOCKED");
+        assert.equal(blocked.body.status, "COMPLETED", "the run completes even when its message is blocked");
+        assert.equal((blocked.body.delivery as { errorCode: string }).errorCode, "RECIPIENT_RATE_LIMITED");
+        assert.equal(blocked.body.outcome, "The agent tried to send and the message was refused: RECIPIENT_RATE_LIMITED.");
+
+        const running = await call("/agents/delivery/AGR-RUNNING");
+        assert.equal(running.body.delivery, null);
+        assert.equal(running.body.outcome, "The run is still in progress; read delivery once it has a final status.");
+        const plain = await call("/agents/delivery/AGR1");
+        assert.equal(plain.body.delivery, null);
+        assert.equal(plain.body.outcome, "This run was started without deliverTo.");
     });
 
     test("no unexpected script errors were reported", () => {

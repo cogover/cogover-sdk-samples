@@ -121,6 +121,8 @@ import processesGet from "./25-processes/get.js";
 
 import agentsStart from "./26-agents/start.js";
 import agentsGet from "./26-agents/get.js";
+import agentsDeliver from "./26-agents/deliver.js";
+import agentsDelivery from "./26-agents/delivery.js";
 
 /**
  * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
@@ -248,4 +250,6 @@ export const samples: readonly Sample[] = [
 
     agentsStart,
     agentsGet,
+    agentsDeliver,
+    agentsDelivery,
 ];

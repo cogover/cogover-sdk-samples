@@ -321,6 +321,8 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 |---|---|---|---|
 | `POST /agents/start` | [26-agents/start.ts](src/samples/26-agents/start.ts) | `context.agents`, `AgentsApi`, `agents.start`, `AgentStartOptions`, `AgentStartResult`, `AgentRecordReference`, `AgentResultCompletion`, `s.object` | agents.start(agentId, { instruction, variables, records, resultSchema, runAs, approvalPolicy, onResult }): run an AI Agent in the background. |
 | `GET /agents/get/:runId` | [26-agents/get.ts](src/samples/26-agents/get.ts) | `agents.get`, `AgentRunState` | agents.get<TResult>(runId): status, text answer, structured result and error of an agent run this project started. |
+| `POST /agents/deliver` | [26-agents/deliver.ts](src/samples/26-agents/deliver.ts) | `agents.start`, `AgentStartOptions.deliverTo`, `AgentDeliveryTarget`, `AgentResultCompletion`, `CogoverApiError` | agents.start(agentId, { instruction, deliverTo: { personnelId, conversation, title }, onResult }): let an AI Agent send a chat message to a personnel. |
+| `GET /agents/delivery/:runId` | [26-agents/delivery.ts](src/samples/26-agents/delivery.ts) | `agents.get`, `AgentRunState.delivery`, `AgentDelivery` | agents.get(runId).delivery: whether the chat message of a deliverTo run was SENT, NOT_SENT, BLOCKED or FAILED, and in which conversation. |
 
 ### Record triggers
 
@@ -339,6 +341,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_cancel_stale_orders` | `0 2 * * *` (Asia/Ho_Chi_Minh) | [cancel-stale-orders.ts](src/jobs/cancel-stale-orders.ts) |
 | `sample_process_completed` | on enqueue | [process-completed.ts](src/jobs/process-completed.ts) |
 | `sample_agent_result` | on enqueue | [agent-result.ts](src/jobs/agent-result.ts) |
+| `sample_agent_delivery` | on enqueue | [agent-delivery.ts](src/jobs/agent-delivery.ts) |
 
 ### Custom Module Actions
 
@@ -347,7 +350,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
 | `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
 
-Total: 96 routes, 4 record triggers, 4 background jobs and 2 Custom Module Actions.
+Total: 98 routes, 4 record triggers, 5 background jobs and 2 Custom Module Actions.
 <!-- catalog:end -->
 
 ## Reading records
@@ -508,6 +511,28 @@ with reason `PROCESSES_NOT_ALLOWED` or `AGENTS_NOT_ALLOWED`:
   the run with `GET /processes/get/:instanceId` or `GET /agents/get/:runId`. Pass an `idempotencyKey` so
   that a repeated call returns the first instance or run with `duplicate: true`.
 
+`POST /agents/deliver` (SDK 0.16.0) starts a run with `deliverTo`, which lets the agent send a chat
+message to one personnel; the message arrives in the AI chat of the agent and that personnel:
+
+- The body takes `agentId` and, optionally, `personnelId` (the caller when omitted, so trying the sample
+  writes to yourself), `conversation` (`"new"`, the default, or `"latest"` to continue the latest
+  conversation of the agent and the recipient), `title` (name of a conversation the run opens) and
+  `topic` (what the agent should tell the recipient). The agent writes the message and may decide not
+  to send one.
+- `GET /agents/delivery/:runId` reads `delivery` of the run: `status` is `SENT`, `NOT_SENT`, `BLOCKED` or
+  `FAILED`, with `errorCode`, `chatSessionId`, `conversationId` and `newConversation`. It is `null` for a
+  run started without `deliverTo` and can be `null` while the run is in progress. The job
+  `sample_agent_delivery` receives the same value as `agentRun.delivery` and stores it under
+  `GET /state/get/last-agent-delivery`.
+- The recipient must be a personnel of the Workspace, may use the agent and has an AI Agent seat.
+  Otherwise the start is refused and the route answers `r: 1016` with code `RECIPIENT_NOT_FOUND`,
+  `RECIPIENT_ACCESS_DENIED` or `RECIPIENT_AI_SEAT_REQUIRED` (`r: 1017` with `DELIVERY_UNAVAILABLE` when the
+  recipient cannot be checked right now); no run is created and nothing is sent. The identity policy
+  needs no entry for recipients.
+- The message is real, in a Development Session too, and Cogover limits how many messages an agent may
+  send to one personnel per run and per day. Include the recipient in the `idempotencyKey`: a repeated
+  key returns the first run even when `deliverTo` differs.
+
 ## Single-endpoint entry point
 
 `src/entries/define-script.ts` shows `defineScript`, the entry style for a project with one
@@ -532,7 +557,8 @@ delete records of the demo Objects, `identity/as-system` reads without the calle
 permissions, the push, notification and email samples reach real people, the triggers run for every write to
 `sample_order`, and the scheduled job cancels stale `sample_order` records every night while the
 version is active. The two actions appear in Process Builder and AI Agent Builder for every member of
-the Workspace, and the Process and AI Agent samples start real instances and runs. Publish to a test
+the Workspace, the Process and AI Agent samples start real instances and runs, and `POST /agents/deliver`
+makes an AI Agent send a real chat message to a personnel. Publish to a test
 Workspace, or remove the samples you do not want from `src/samples/index.ts`, `src/triggers/index.ts`
 and `src/actions/index.ts`.
 
