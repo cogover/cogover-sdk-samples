@@ -34,6 +34,7 @@ import recordsUpsert from "./05-records-write/upsert.js";
 import recordsDeleteMany from "./05-records-write/delete-many.js";
 import recordsLookupReference from "./05-records-write/lookup-reference.js";
 import recordsFieldValues from "./05-records-write/field-values.js";
+import recordsParallelWrites from "./05-records-write/parallel-writes.js";
 
 import filtersOperators from "./06-filters/operators.js";
 import filtersAndOr from "./06-filters/and-or.js";
@@ -163,6 +164,7 @@ export const samples: readonly Sample[] = [
     recordsDeleteMany,
     recordsLookupReference,
     recordsFieldValues,
+    recordsParallelWrites,
 
     filtersOperators,
     filtersAndOr,
