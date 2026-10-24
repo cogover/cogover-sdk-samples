@@ -148,6 +148,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `DELETE /records/delete-many` | [05-records-write/delete-many.ts](src/samples/05-records-write/delete-many.ts) | `records.deleteMany`, `DeleteResult`, `CogoverApiError.r` | records.deleteMany(ids): delete orders (or customers with object: "sample_customer"); compare deleted with the request. |
 | `POST /records/lookup-reference` | [05-records-write/lookup-reference.ts](src/samples/05-records-write/lookup-reference.ts) | `RecordReference`, `records.create`, `records.get`, `expandLookups` | Write a lookup field with an ID and read it back as a RecordReference, without and with expandLookups. |
 | `POST /records/field-values` | [05-records-write/field-values.ts](src/samples/05-records-write/field-values.ts) | `UrlValue`, `CreateFields`, `UpdateFields`, `records.create`, `records.update`, `records.get`, `records.deleteMany` | Value formats per field type (text, boolean, choice, UrlValue, number) and clearing with null. |
+| `POST /records/parallel-writes` | [05-records-write/parallel-writes.ts](src/samples/05-records-write/parallel-writes.ts) | `records.getMany`, `records.batchUpdate`, `records.batchInsert`, `limits.usage` | Parallel calls with Promise.all: records.getMany, records.batchUpdate and records.batchInsert confirm orders and create follow-ups in 5 calls. |
 
 ### Filter và sắp xếp
 
@@ -348,7 +349,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
 | `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
 
-Tổng cộng: 98 route, 4 record trigger, 5 background job và 2 Custom Module Action.
+Tổng cộng: 99 route, 4 record trigger, 5 background job và 2 Custom Module Action.
 <!-- catalog:end -->
 
 ## Đọc record
