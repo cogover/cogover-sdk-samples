@@ -1,6 +1,6 @@
 import { ValidationError } from "@cogover/sdk";
 import type { CogoverRecordId, UpdateFields, WorkspaceObjects } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 type OrderFields = WorkspaceObjects["sample_order"];
 
@@ -18,7 +18,7 @@ interface Input {
  * field. Record IDs that come from outside the SDK are plain strings: assert the `CogoverRecordId`
  * brand once, at the boundary.
  */
-export default defineSample<Input>({
+export default {
     id: "records.update",
     method: "PATCH",
     path: "/records/update/:recordId",
@@ -26,22 +26,23 @@ export default defineSample<Input>({
     sdk: ["records.update", "UpdateFields", "CogoverRecordId"],
     file: "src/samples/05-records-write/update.ts",
     curl: `curl -s -X PATCH "$BASE/records/update/<recordId>" -H "Content-Type: application/json" --data '{"status":"confirmed","note":null}'`,
-    handler: async ({ request, data }) => {
-        const recordId = (request.params.recordId ?? "") as CogoverRecordId;
-        const { status, note } = request.body;
+} satisfies SampleInfo;
 
-        const fields: UpdateFields<OrderFields> = {};
-        if (status !== undefined) {
-            if (!isStatus(status)) throw new ValidationError(`status must be one of ${STATUSES.join(", ")}`);
-            fields.status = status;
-        }
-        if (note !== undefined) {
-            if (note !== null && typeof note !== "string") throw new ValidationError("note must be a string or null");
-            fields.note = note;
-        }
-        if (Object.keys(fields).length === 0) throw new ValidationError("Provide status and/or note");
+export const recordsUpdate: SampleHandler<Input> = async ({ request, data }) => {
+    const recordId = (request.params.recordId ?? "") as CogoverRecordId;
+    const { status, note } = request.body;
 
-        await data.object("sample_order").records.update(recordId, fields);
-        return { id: recordId, updated: fields };
-    },
-});
+    const fields: UpdateFields<OrderFields> = {};
+    if (status !== undefined) {
+        if (!isStatus(status)) throw new ValidationError(`status must be one of ${STATUSES.join(", ")}`);
+        fields.status = status;
+    }
+    if (note !== undefined) {
+        if (note !== null && typeof note !== "string") throw new ValidationError("note must be a string or null");
+        fields.note = note;
+    }
+    if (Object.keys(fields).length === 0) throw new ValidationError("Provide status and/or note");
+
+    await data.object("sample_order").records.update(recordId, fields);
+    return { id: recordId, updated: fields };
+};

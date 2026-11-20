@@ -1,7 +1,7 @@
 import { NotFoundError } from "@cogover/sdk";
 import type { ActionManifest, JsonSchema } from "@cogover/sdk";
 import { actionManifests } from "../../actions/index.js";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /** The top-level input properties a Process node fills, as the builders read them from the JSON Schema. */
 function inputProperties(schema: JsonSchema): string[] {
@@ -15,7 +15,7 @@ function inputProperties(schema: JsonSchema): string[] {
  * `timeoutMs` defaults to 8000, and `inputSchema` / `outputSchema` are the JSON Schemas built by `s`. The labels,
  * descriptions and schemas are visible to every active member of the Workspace, so they never hold secrets.
  */
-export default defineSample({
+export default {
     id: "actions.manifests",
     method: "GET",
     path: "/actions/manifests",
@@ -23,15 +23,17 @@ export default defineSample({
     sdk: ["defineAction", "ActionDefinition.config", "ActionManifest", "JsonSchema", "actions export"],
     file: "src/samples/24-actions/manifests.ts",
     curl: `curl -s "$BASE/actions/manifests?key=sample_score_customer"`,
-    handler: ({ request }) => {
-        const key = request.query.key;
-        const selected: readonly ActionManifest[] = typeof key === "string"
-            ? actionManifests.filter(manifest => manifest.key === key)
-            : actionManifests;
-        if (typeof key === "string" && selected.length === 0) throw new NotFoundError("action", key);
-        return {
-            count: selected.length,
-            actions: selected.map(manifest => ({ ...manifest, inputProperties: inputProperties(manifest.inputSchema) })),
-        };
-    },
-});
+} satisfies SampleInfo;
+
+export const actionsManifests: SampleHandler = ({ request }) => {
+    const key = request.query.key;
+    const manifests = actionManifests();
+    const selected: readonly ActionManifest[] = typeof key === "string"
+        ? manifests.filter(manifest => manifest.key === key)
+        : manifests;
+    if (typeof key === "string" && selected.length === 0) throw new NotFoundError("action", key);
+    return {
+        count: selected.length,
+        actions: selected.map(manifest => ({ ...manifest, inputProperties: inputProperties(manifest.inputSchema) })),
+    };
+};

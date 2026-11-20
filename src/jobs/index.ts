@@ -22,7 +22,10 @@ import { recountOrders } from "./recount-orders.js";
  */
 export const jobs: readonly JobDefinition[] = [recountOrders, cancelStaleOrders, processCompleted, agentResult, agentDelivery];
 
-export const jobManifests: readonly JobManifest[] = jobs.map(job => job.config);
+/** The normalized manifests, computed when asked (not while the file loads). */
+export function jobManifests(): readonly JobManifest[] {
+    return jobs.map(job => job.config);
+}
 
 /** The part of a manifest shown by the catalog route (`GET /`). */
 export interface JobSummary {
@@ -33,10 +36,12 @@ export interface JobSummary {
     readonly schedule: Required<JobSchedule> | null;
 }
 
-export const jobSummaries: readonly JobSummary[] = jobManifests.map(manifest => ({
-    key: manifest.key,
-    name: manifest.name ?? null,
-    timeoutMs: manifest.timeoutMs,
-    maxAttempts: manifest.maxAttempts,
-    schedule: manifest.schedule ?? null,
-}));
+export function jobSummaries(): readonly JobSummary[] {
+    return jobManifests().map(manifest => ({
+        key: manifest.key,
+        name: manifest.name ?? null,
+        timeoutMs: manifest.timeoutMs,
+        maxAttempts: manifest.maxAttempts,
+        schedule: manifest.schedule ?? null,
+    }));
+}

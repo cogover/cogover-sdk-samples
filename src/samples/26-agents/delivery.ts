@@ -1,6 +1,6 @@
 import { NotFoundError, PermissionDeniedError } from "@cogover/sdk";
 import type { AgentDelivery, AgentRunState } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object";
 const IN_PROGRESS: ReadonlySet<string> = new Set(["QUEUED", "RUNNING"]);
@@ -31,7 +31,7 @@ function describe(delivery: AgentDelivery): string {
  * `RECIPIENT_RATE_LIMITED`, `RECIPIENT_AI_SEAT_REQUIRED`, `CHAT_SERVER_ERROR` or `DELIVERY_ERROR`.
  * `chatSessionId` and `conversationId` identify the conversation when a message was sent.
  */
-export default defineSample({
+export default {
     id: "agents.delivery",
     method: "GET",
     path: "/agents/delivery/:runId",
@@ -39,29 +39,30 @@ export default defineSample({
     sdk: ["agents.get", "AgentRunState.delivery", "AgentDelivery"],
     file: "src/samples/26-agents/delivery.ts",
     curl: `curl -s "$BASE/agents/delivery/<runId>"`,
-    handler: async ({ request, agents }) => {
-        const runId = request.params.runId ?? "";
-        try {
-            const run: AgentRunState = await agents.get(runId);
-            const finished = !IN_PROGRESS.has(run.status);
-            const delivery: AgentDelivery | null = run.delivery;
-            return {
-                runId: run.runId,
-                status: run.status,
-                finished,
-                delivery,
-                outcome: delivery !== null ? describe(delivery)
-                    : finished ? "This run was started without deliverTo."
-                        : "The run is still in progress; read delivery once it has a final status.",
-                text: run.text,
-                error: run.error,
-            };
-        } catch (error) {
-            if (error instanceof NotFoundError) return { r: 1004, msg: "This project did not start that agent run.", runId };
-            if (error instanceof PermissionDeniedError) {
-                return { r: 1003, msg: "The project policy has no agents section.", reason: isRecord(error.details) ? error.details.reason ?? null : null };
-            }
-            throw error;
+} satisfies SampleInfo;
+
+export const agentsDelivery: SampleHandler = async ({ request, agents }) => {
+    const runId = request.params.runId ?? "";
+    try {
+        const run: AgentRunState = await agents.get(runId);
+        const finished = !IN_PROGRESS.has(run.status);
+        const delivery: AgentDelivery | null = run.delivery;
+        return {
+            runId: run.runId,
+            status: run.status,
+            finished,
+            delivery,
+            outcome: delivery !== null ? describe(delivery)
+                : finished ? "This run was started without deliverTo."
+                    : "The run is still in progress; read delivery once it has a final status.",
+            text: run.text,
+            error: run.error,
+        };
+    } catch (error) {
+        if (error instanceof NotFoundError) return { r: 1004, msg: "This project did not start that agent run.", runId };
+        if (error instanceof PermissionDeniedError) {
+            return { r: 1003, msg: "The project policy has no agents section.", reason: isRecord(error.details) ? error.details.reason ?? null : null };
         }
-    },
-});
+        throw error;
+    }
+};

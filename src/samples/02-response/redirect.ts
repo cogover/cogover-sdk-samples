@@ -1,7 +1,7 @@
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /** `response.redirect(location, status?)` sets the `location` header; the status defaults to 302. */
-export default defineSample({
+export default {
     id: "response.redirect",
     method: "GET",
     path: "/response/redirect",
@@ -9,8 +9,9 @@ export default defineSample({
     sdk: ["response.redirect"],
     file: "src/samples/02-response/redirect.ts",
     curl: `curl -s -i "$BASE/response/redirect"   # add ?permanent=true for a 301`,
-    handler: ({ request, response }) => {
-        const permanent = request.query.permanent === "true";
-        return response.redirect("https://www.npmjs.com/package/@cogover/sdk", permanent ? 301 : 302);
-    },
-});
+} satisfies SampleInfo;
+
+export const responseRedirect: SampleHandler = ({ request, response }) => {
+    const permanent = request.query.permanent === "true";
+    return response.redirect("https://www.npmjs.com/package/@cogover/sdk", permanent ? 301 : 302);
+};

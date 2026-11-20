@@ -1,6 +1,6 @@
 import { ValidationError } from "@cogover/sdk";
 import type { AggregateMetric, AggregateOptions, AggregateResult, AggregateValues, WorkspaceObjects } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 type OrderFields = WorkspaceObjects["sample_order"];
 type OrderStatus = NonNullable<OrderFields["status"]>;
@@ -34,7 +34,7 @@ const METRICS = {
  * must be granted by the project policy. Aggregates are computed from a search index that follows writes
  * after about one second, so an order created just before may not be counted yet.
  */
-export default defineSample({
+export default {
     id: "records.aggregate",
     method: "GET",
     path: "/records/aggregate",
@@ -42,24 +42,25 @@ export default defineSample({
     sdk: ["records.aggregate", "AggregateOptions", "AggregateMetric", "AggregateResult", "AggregateValues"],
     file: "src/samples/04-records-read/aggregate.ts",
     curl: `curl -s "$BASE/records/aggregate?status=confirmed"`,
-    handler: async ({ request, data }) => {
-        const status = request.query.status;
-        if (status !== undefined && !isStatus(status)) {
-            throw new ValidationError(`status must be one of ${STATUSES.join(", ")}`);
-        }
-        const orders = data.object("sample_order");
-        const options: AggregateOptions<OrderFields, typeof METRICS> = {
-            metrics: METRICS,
-            ...(status === undefined ? {} : { where: orders.fields.status.eq(status) }),
-        };
-        const result: AggregateResult<AggregateValues<typeof METRICS>> = await orders.records.aggregate(options);
+} satisfies SampleInfo;
 
-        // Typed from METRICS: `orders` and `revenue` are numbers, `averageOrder` is `number | null`.
-        const { orders: count, revenue, averageOrder } = result.values;
-        return {
-            status: status ?? "all",
-            values: result.values,
-            summary: count === 0 ? "No matching orders" : `${count} orders, revenue ${revenue}, average ${averageOrder ?? "n/a"}`,
-        };
-    },
-});
+export const recordsAggregate: SampleHandler = async ({ request, data }) => {
+    const status = request.query.status;
+    if (status !== undefined && !isStatus(status)) {
+        throw new ValidationError(`status must be one of ${STATUSES.join(", ")}`);
+    }
+    const orders = data.object("sample_order");
+    const options: AggregateOptions<OrderFields, typeof METRICS> = {
+        metrics: METRICS,
+        ...(status === undefined ? {} : { where: orders.fields.status.eq(status) }),
+    };
+    const result: AggregateResult<AggregateValues<typeof METRICS>> = await orders.records.aggregate(options);
+
+    // Typed from METRICS: `orders` and `revenue` are numbers, `averageOrder` is `number | null`.
+    const { orders: count, revenue, averageOrder } = result.values;
+    return {
+        status: status ?? "all",
+        values: result.values,
+        summary: count === 0 ? "No matching orders" : `${count} orders, revenue ${revenue}, average ${averageOrder ?? "n/a"}`,
+    };
+};

@@ -1,5 +1,5 @@
 import { CogoverApiError, fetch, RateLimitError, ValidationError } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * Failures are `CogoverApiError`s with `code` FETCH_DISABLED, FETCH_BLOCKED, FETCH_REQUEST_TOO_LARGE,
@@ -14,7 +14,7 @@ const CASES: Readonly<Record<string, () => Promise<unknown>>> = {
     "bad-option": () => fetch("https://httpbin.org/get", { credentials: "include" } as never),
 };
 
-export default defineSample({
+export default {
     id: "fetch.error-handling",
     method: "GET",
     path: "/fetch/errors",
@@ -22,19 +22,20 @@ export default defineSample({
     sdk: ["fetch", "CogoverApiError", "RateLimitError", "ValidationError"],
     file: "src/samples/10-fetch/error-handling.ts",
     curl: `curl -s "$BASE/fetch/errors?case=timeout"`,
-    handler: async ({ request }) => {
-        const name = typeof request.query.case === "string" ? request.query.case : "ok";
-        const run = CASES[name];
-        if (run === undefined) throw new ValidationError(`case must be one of ${Object.keys(CASES).join(", ")}`);
-        try {
-            const response = await run();
-            const status = typeof response === "object" && response !== null && "status" in response ? response.status : null;
-            return { case: name, outcome: "response", status };
-        } catch (error) {
-            if (error instanceof RateLimitError) return { case: name, outcome: "rate-limited", code: error.code, r: error.r ?? null };
-            if (error instanceof ValidationError) return { case: name, outcome: "invalid-arguments", message: error.message };
-            if (error instanceof CogoverApiError) return { case: name, outcome: "fetch-failed", code: error.code, r: error.r ?? null };
-            throw error;
-        }
-    },
-});
+} satisfies SampleInfo;
+
+export const fetchErrorHandling: SampleHandler = async ({ request }) => {
+    const name = typeof request.query.case === "string" ? request.query.case : "ok";
+    const run = CASES[name];
+    if (run === undefined) throw new ValidationError(`case must be one of ${Object.keys(CASES).join(", ")}`);
+    try {
+        const response = await run();
+        const status = typeof response === "object" && response !== null && "status" in response ? response.status : null;
+        return { case: name, outcome: "response", status };
+    } catch (error) {
+        if (error instanceof RateLimitError) return { case: name, outcome: "rate-limited", code: error.code, r: error.r ?? null };
+        if (error instanceof ValidationError) return { case: name, outcome: "invalid-arguments", message: error.message };
+        if (error instanceof CogoverApiError) return { case: name, outcome: "fetch-failed", code: error.code, r: error.r ?? null };
+        throw error;
+    }
+};

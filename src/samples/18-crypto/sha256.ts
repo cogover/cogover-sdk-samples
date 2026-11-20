@@ -1,6 +1,6 @@
 import { crypto, ValidationError } from "@cogover/sdk";
 import type { CryptoApi } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 interface Input {
     readonly data?: unknown;
@@ -11,7 +11,7 @@ interface Input {
  * `context.crypto`: both are the same frozen object. A string is hashed as UTF-8, a `Uint8Array`
  * as is; the digest is hex by default or base64. Data is limited to 256 KiB.
  */
-export default defineSample<Input>({
+export default {
     id: "crypto.sha256",
     method: "POST",
     path: "/crypto/sha256",
@@ -19,17 +19,18 @@ export default defineSample<Input>({
     sdk: ["crypto", "context.crypto", "CryptoApi", "crypto.sha256"],
     file: "src/samples/18-crypto/sha256.ts",
     curl: `curl -s -X POST "$BASE/crypto/sha256" -H "Content-Type: application/json" --data '{"data":"hello"}'`,
-    handler: async ({ request, crypto: contextCrypto }) => {
-        const api: CryptoApi = contextCrypto;
-        const { data } = request.body;
-        if (typeof data !== "string") throw new ValidationError("data must be a string");
-        const bytes = Uint8Array.from(data, character => character.charCodeAt(0) & 0xff);
-        return {
-            hex: await crypto.sha256(data),
-            base64: await api.sha256(data, "base64"),
-            // Bytes hash exactly as given; for ASCII input this equals the string digest.
-            bytesHex: await crypto.sha256(bytes),
-            sameObject: api === crypto,
-        };
-    },
-});
+} satisfies SampleInfo;
+
+export const cryptoSha256: SampleHandler<Input> = async ({ request, crypto: contextCrypto }) => {
+    const api: CryptoApi = contextCrypto;
+    const { data } = request.body;
+    if (typeof data !== "string") throw new ValidationError("data must be a string");
+    const bytes = Uint8Array.from(data, character => character.charCodeAt(0) & 0xff);
+    return {
+        hex: await crypto.sha256(data),
+        base64: await api.sha256(data, "base64"),
+        // Bytes hash exactly as given; for ASCII input this equals the string digest.
+        bytesHex: await crypto.sha256(bytes),
+        sameObject: api === crypto,
+    };
+};

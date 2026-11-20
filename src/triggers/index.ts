@@ -23,7 +23,10 @@ export const triggers: readonly TriggerDefinition[] = [
     noteWhenShipped,
 ];
 
-export const triggerManifests: readonly TriggerManifest[] = triggers.map(trigger => trigger.config);
+/** The normalized manifests, computed when asked (not while the file loads). */
+export function triggerManifests(): readonly TriggerManifest[] {
+    return triggers.map(trigger => trigger.config);
+}
 
 /** The reserved sandbox entry stored in `TriggerDefinition.__cogoverTriggerHandler`; project code never calls it. */
 export type TriggerEntry = TriggerSandboxHandler;
@@ -38,11 +41,13 @@ export interface TriggerSummary {
     readonly writableFields: readonly string[];
 }
 
-export const triggerSummaries: readonly TriggerSummary[] = triggerManifests.map(manifest => ({
-    key: manifest.key,
-    object: manifest.object,
-    timing: manifest.timing,
-    operations: manifest.operations,
-    runWhen: manifest.runWhen,
-    writableFields: manifest.writableFields,
-}));
+export function triggerSummaries(): readonly TriggerSummary[] {
+    return triggerManifests().map(manifest => ({
+        key: manifest.key,
+        object: manifest.object,
+        timing: manifest.timing,
+        operations: manifest.operations,
+        runWhen: manifest.runWhen,
+        writableFields: manifest.writableFields,
+    }));
+}

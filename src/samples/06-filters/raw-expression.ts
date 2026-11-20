@@ -1,6 +1,6 @@
 import { ValidationError } from "@cogover/sdk";
 import type { FilterCondition, FilterExpression, FilterGroup, FilterOperator } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 const OPERATORS: readonly FilterOperator[] = [
     "=", "!=", ">", ">=", "<", "<=", "like", "not like", "startsWith", "endsWith",
@@ -19,7 +19,7 @@ interface Input {
  * (`kind: "condition"` / `kind: "group"`), so a dynamic filter (for example from a UI) can be
  * assembled without the `fields` helpers. Validate the operator before trusting the input.
  */
-export default defineSample<Input>({
+export default {
     id: "filters.raw-expression",
     method: "POST",
     path: "/filters/raw-expression",
@@ -27,24 +27,25 @@ export default defineSample<Input>({
     sdk: ["FilterCondition", "FilterGroup", "FilterExpression", "FilterOperator"],
     file: "src/samples/06-filters/raw-expression.ts",
     curl: `curl -s -X POST "$BASE/filters/raw-expression" -H "Content-Type: application/json" --data '{"match":"and","conditions":[{"field":"status","operator":"in","value":["new","confirmed"]},{"field":"total","operator":">=","value":100}]}'`,
-    handler: async ({ request, data }) => {
-        const { conditions, match } = request.body;
-        if (!Array.isArray(conditions) || conditions.length === 0) throw new ValidationError("conditions must be a non-empty array");
-        if (match !== undefined && match !== "and" && match !== "or") throw new ValidationError("match must be and or or");
+} satisfies SampleInfo;
 
-        const expressions: FilterCondition[] = conditions.map((entry, index) => {
-            if (!isRecord(entry) || typeof entry.field !== "string" || !isOperator(entry.operator)) {
-                throw new ValidationError(`conditions[${index}] needs a field and a valid operator`);
-            }
-            return entry.value === undefined
-                ? { kind: "condition", field: entry.field, operator: entry.operator }
-                : { kind: "condition", field: entry.field, operator: entry.operator, value: entry.value };
-        });
-        const where: FilterExpression = expressions.length === 1 && expressions[0] !== undefined
-            ? expressions[0]
-            : ({ kind: "group", operator: match ?? "and", expressions } satisfies FilterGroup);
+export const filtersRawExpression: SampleHandler<Input> = async ({ request, data }) => {
+    const { conditions, match } = request.body;
+    if (!Array.isArray(conditions) || conditions.length === 0) throw new ValidationError("conditions must be a non-empty array");
+    if (match !== undefined && match !== "and" && match !== "or") throw new ValidationError("match must be and or or");
 
-        const page = await data.object("sample_order").records.list({ where, fields: ["name", "status", "total"], limit: 10 });
-        return { where, total: page.total, items: page.items.map(item => ({ id: item.id, ...item.fields })) };
-    },
-});
+    const expressions: FilterCondition[] = conditions.map((entry, index) => {
+        if (!isRecord(entry) || typeof entry.field !== "string" || !isOperator(entry.operator)) {
+            throw new ValidationError(`conditions[${index}] needs a field and a valid operator`);
+        }
+        return entry.value === undefined
+            ? { kind: "condition", field: entry.field, operator: entry.operator }
+            : { kind: "condition", field: entry.field, operator: entry.operator, value: entry.value };
+    });
+    const where: FilterExpression = expressions.length === 1 && expressions[0] !== undefined
+        ? expressions[0]
+        : ({ kind: "group", operator: match ?? "and", expressions } satisfies FilterGroup);
+
+    const page = await data.object("sample_order").records.list({ where, fields: ["name", "status", "total"], limit: 10 });
+    return { where, total: page.total, items: page.items.map(item => ({ id: item.id, ...item.fields })) };
+};

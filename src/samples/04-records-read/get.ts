@@ -8,7 +8,7 @@ import type {
     SelectedFields,
     WorkspaceObjects,
 } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 type OrderFields = WorkspaceObjects["sample_order"];
 
@@ -25,7 +25,7 @@ type OrderView = SelectedFields<OrderFields, typeof ORDER_FIELDS>;
  * The lookup `customer` comes back as `{ id, name: "", objectSlug }` and `system.createdBy.name` is `""`,
  * because the read does not expand lookups; `expand-lookups.ts` shows how to get the names.
  */
-export default defineSample({
+export default {
     id: "records.get",
     method: "GET",
     path: "/records/get/:recordId",
@@ -33,21 +33,22 @@ export default defineSample({
     sdk: ["data.object", "records.get", "GetRecordOptions", "FieldSelection", "SelectedFields", "CogoverRecord", "ObjectClient", "FileValue"],
     file: "src/samples/04-records-read/get.ts",
     curl: `curl -s "$BASE/records/get/<recordId>"`,
-    handler: async ({ request, data }) => {
-        const recordId = request.params.recordId ?? "";
-        const orders: ObjectClient<OrderFields> = data.object("sample_order");
-        const options: GetRecordOptions<OrderFields, typeof ORDER_FIELDS> = { fields: ORDER_FIELDS };
-        const order: CogoverRecord<OrderView> | null = await orders.records.get(recordId, options);
-        if (order === null) throw new NotFoundError("sample_order", recordId);
+} satisfies SampleInfo;
 
-        const files: readonly FileValue[] = order.fields.files ?? [];
-        return {
-            id: order.id,
-            fields: order.fields,
-            // Not expanded: `name` is "" here. The ID is enough to read the customer or to filter by it.
-            customerId: order.fields.customer?.id ?? null,
-            attachments: files.map(file => ({ name: file.name, size: file.size ?? null })),
-            system: order.system,
-        };
-    },
-});
+export const recordsGet: SampleHandler = async ({ request, data }) => {
+    const recordId = request.params.recordId ?? "";
+    const orders: ObjectClient<OrderFields> = data.object("sample_order");
+    const options: GetRecordOptions<OrderFields, typeof ORDER_FIELDS> = { fields: ORDER_FIELDS };
+    const order: CogoverRecord<OrderView> | null = await orders.records.get(recordId, options);
+    if (order === null) throw new NotFoundError("sample_order", recordId);
+
+    const files: readonly FileValue[] = order.fields.files ?? [];
+    return {
+        id: order.id,
+        fields: order.fields,
+        // Not expanded: `name` is "" here. The ID is enough to read the customer or to filter by it.
+        customerId: order.fields.customer?.id ?? null,
+        attachments: files.map(file => ({ name: file.name, size: file.size ?? null })),
+        system: order.system,
+    };
+};

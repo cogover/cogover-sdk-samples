@@ -1,6 +1,6 @@
 import { s, ValidationError } from "@cogover/sdk";
 import type { InferSchema, JsonSchema, ObjectSchema, ObjectShape, Schema } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /** One line of a shipment. `satisfies ObjectShape` checks the map without widening the property types. */
 const lineShape = {
@@ -50,7 +50,7 @@ function rejected(build: () => unknown): string {
  * each builder (what Process Builder and AI Agents read), checks a shipment code the way a handler would, and
  * shows the errors of invalid builder options.
  */
-export default defineSample({
+export default {
     id: "actions.schema-builder",
     method: "GET",
     path: "/actions/schema-builder",
@@ -58,48 +58,49 @@ export default defineSample({
     sdk: ["s", "Schema", "ObjectSchema", "ObjectShape", "InferSchema", "JsonSchema", "Schema.toJSON"],
     file: "src/samples/24-actions/schema-builder.ts",
     curl: `curl -s "$BASE/actions/schema-builder?code=SHP-1024"`,
-    handler: ({ request }) => {
-        const code = typeof request.query.code === "string" ? request.query.code : "SHP-1024";
-        let codeCheck = "valid";
-        try {
-            checkCode(code);
-        } catch (error) {
-            if (!(error instanceof ValidationError)) throw error;
-            codeCheck = error.message;
-        }
+} satisfies SampleInfo;
 
-        const text: Schema<string> = s.string();
-        const optionalFlag: Schema<boolean, true> = s.boolean().optional();
-        const node: ObjectSchema = shipment;
-        const jsonSchema: JsonSchema = node.toJSON();
-        const example: Shipment = {
-            code, carrier: "dhl", weightKg: 2.5, parcels: 1, shipOn: "2026-10-01",
-            // An s.recordId() value is typed CogoverRecordId; a real handler gets it from its input or a records call.
-            orderId: "ORD1" as Shipment["orderId"], lines: [{ sku: "LAPTOP-14", quantity: 1 }],
-        };
-        return {
-            jsonSchema,
-            sameAsStringify: JSON.stringify(shipment) === JSON.stringify(jsonSchema),
-            nodes: {
-                string: text.toJSON(),
-                optionalBoolean: optionalFlag.toJSON(),
-                enum: s.enum(["A", "B"]).toJSON(),
-                number: s.number({ minimum: 0 }).toJSON(),
-                integer: s.integer().toJSON(),
-                date: s.date().toJSON(),
-                dateTime: s.dateTime().toJSON(),
-                recordId: s.recordId("sample_customer").toJSON(),
-                array: s.array(s.string(), { maxItems: 3 }).toJSON(),
-            },
-            example,
-            code,
-            codeCheck,
-            invalidOptions: {
-                emptyEnum: rejected(() => s.enum([])),
-                maxLengthZero: rejected(() => s.string({ maxLength: 0 })),
-                propertyName: rejected(() => s.object({ "order-id": s.string() })),
-                handWrittenSchema: rejected(() => s.array({ type: "string" } as unknown as Schema<string>)),
-            },
-        };
-    },
-});
+export const actionsSchemaBuilder: SampleHandler = ({ request }) => {
+    const code = typeof request.query.code === "string" ? request.query.code : "SHP-1024";
+    let codeCheck = "valid";
+    try {
+        checkCode(code);
+    } catch (error) {
+        if (!(error instanceof ValidationError)) throw error;
+        codeCheck = error.message;
+    }
+
+    const text: Schema<string> = s.string();
+    const optionalFlag: Schema<boolean, true> = s.boolean().optional();
+    const node: ObjectSchema = shipment;
+    const jsonSchema: JsonSchema = node.toJSON();
+    const example: Shipment = {
+        code, carrier: "dhl", weightKg: 2.5, parcels: 1, shipOn: "2026-10-01",
+        // An s.recordId() value is typed CogoverRecordId; a real handler gets it from its input or a records call.
+        orderId: "ORD1" as Shipment["orderId"], lines: [{ sku: "LAPTOP-14", quantity: 1 }],
+    };
+    return {
+        jsonSchema,
+        sameAsStringify: JSON.stringify(shipment) === JSON.stringify(jsonSchema),
+        nodes: {
+            string: text.toJSON(),
+            optionalBoolean: optionalFlag.toJSON(),
+            enum: s.enum(["A", "B"]).toJSON(),
+            number: s.number({ minimum: 0 }).toJSON(),
+            integer: s.integer().toJSON(),
+            date: s.date().toJSON(),
+            dateTime: s.dateTime().toJSON(),
+            recordId: s.recordId("sample_customer").toJSON(),
+            array: s.array(s.string(), { maxItems: 3 }).toJSON(),
+        },
+        example,
+        code,
+        codeCheck,
+        invalidOptions: {
+            emptyEnum: rejected(() => s.enum([])),
+            maxLengthZero: rejected(() => s.string({ maxLength: 0 })),
+            propertyName: rejected(() => s.object({ "order-id": s.string() })),
+            handWrittenSchema: rejected(() => s.array({ type: "string" } as unknown as Schema<string>)),
+        },
+    };
+};

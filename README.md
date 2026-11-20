@@ -24,10 +24,11 @@ so local development, testing and publishing work exactly as in the starter. It 
   Process or an AI Agent run, declared with `defineJob`.
 - `src/actions/`: a read and a write Custom Module Action, declared with `defineAction` and the `s`
   schema builder, that Processes and AI Agents of the Workspace can call.
-- `src/routers/`: a group of routes in its own router, mounted by `src/main.ts` with
-  `router.route(prefix, childRouter)` (SDK 0.18.0; see [Route groups](#route-groups)).
-- `GET /`: the catalog. It lists every sample with its route, the SDK APIs it shows, its source file
-  and a ready-to-run `curl`.
+- `src/routers/<area>.ts`: one router per area, with `createRouter()` and the route registrations
+  only; `src/main.ts` mounts each with `router.route(prefix, areaRouter)` (SDK 0.18.0; see
+  [Keep the module fast to load](#keep-the-module-fast-to-load)).
+- `GET /`: the catalog (`src/catalog.ts`). It lists every sample with its route, the SDK APIs it shows,
+  its source file and a ready-to-run `curl`.
 - `src/entries/define-script.ts`: the single-endpoint entry style (`defineScript`) as an alternative
   to the router.
 - `src/workspace.d.ts`: typed declarations of the two demo Objects, so every record call is
@@ -36,7 +37,11 @@ so local development, testing and publishing work exactly as in the starter. It 
 
 ## Requirements
 
-- Node.js 20 or later and the Cogover Dev CLI 0.20 or later (`npm install --global @cogover/dev-cli`).
+- Node.js 20 or later and the Cogover Dev CLI 0.20 or later (`npm install --global @cogover/dev-cli`);
+  0.22 or later prints the Load profile after `cogover-dev publish`.
+- A Workspace whose Runtime supports `router.route()` (`@cogover/sdk` 0.18.0): every group of samples is
+  mounted with it, and a Workspace builds the project with the SDK of its own Runtime, so publishing to a
+  Workspace that does not support it yet fails.
 - TypeScript 5.0 or later, which `@cogover/sdk` 0.13 needs; `npm install` installs a suitable version.
 - A Cogover Workspace where you can create Objects and a Custom Backend Module Project.
 - A Project key for local Development Sessions, and a Workspace API key if you publish.
@@ -554,15 +559,15 @@ message to one personnel; the message arrives in the AI chat of the agent and th
 
 ## Route groups
 
-`src/routers/customer-router.ts` keeps three routes in their own router, created with `createRouter()`. The
-file contains only the router and its route registrations; the handlers are the samples of
-`src/samples/27-route-groups/`. `src/main.ts` mounts it under a prefix with a parameter:
+Every area of samples is a router of its own (see [Keep the module fast to load](#keep-the-module-fast-to-load)).
+The area `27-route-groups` shows a prefix with a parameter: `src/routers/route-groups.ts` registers three
+routes, whose handlers are the samples of `src/samples/27-route-groups/`, and `src/main.ts` mounts it with:
 
 ```typescript
-router.route("/route-groups/customers/:customerId", customerRouter);
+router.route("/route-groups/customers/:customerId", routeGroupsRoutes);
 ```
 
-| Route of `customerRouter` | Answers at |
+| Route of `routeGroupsRoutes` | Answers at |
 |---|---|
 | `GET /` | `GET /route-groups/customers/:customerId` |
 | `GET /orders` | `GET /route-groups/customers/:customerId/orders` |
@@ -576,13 +581,65 @@ router.route("/route-groups/customers/:customerId", customerRouter);
 
 **Requirements:** `router.route()` needs `@cogover/sdk` 0.18.0 or later **and** a Workspace whose Runtime
 supports it. A Workspace builds the project with the SDK of its own Runtime, so publishing this project
-to a Workspace that does not support `router.route()` yet fails. In that case remove the
-`router.route(...)` line and its import from `src/main.ts` and the three `routeGroups*` entries from
-`src/samples/index.ts`, or publish to a Workspace that supports it.
+to a Workspace that does not support `router.route()` yet fails.
 
-Keeping a group in a router file that only `src/main.ts` imports is also what the SDK usage guide asks
-for in "Keep the module fast to load". This repository does not set `entryPointParts`, because its other
-routes are registered directly on the main router.
+## Keep the module fast to load
+
+Every invocation loads the module code it runs. When a version is published, Cogover also builds smaller
+modules, called parts, that hold only the code one trigger, job, action or group of routes needs, and
+measures them. The layout of this repository is the one the
+[@cogover/sdk usage guide](https://www.npmjs.com/package/@cogover/sdk) (also installed as
+`node_modules/@cogover/sdk/docs/en/usage-guide.md`) asks for in "Keep the module fast to load", so every
+entry point has a part:
+
+- Each trigger, job and action is defined and exported from its own file (`src/triggers/`, `src/jobs/`,
+  `src/actions/`); `src/triggers/index.ts`, `src/jobs/index.ts` and `src/actions/index.ts` only list them.
+- Each area of samples has a router file, `src/routers/<area>.ts`, that contains only `createRouter()` and
+  its route registrations. The handlers stay in the sample files, which export them by name next to a
+  plain catalog entry.
+- `src/main.ts` only imports, re-exports `triggers`, `jobs` and `actions`, and mounts the area routers with
+  explicit `router.route(prefix, areaRouter)` lines. The catalog `GET /` is a router of its own too
+  (`src/routers/catalog.ts`); only it imports `src/samples/index.ts`, the list of every sample.
+- No file runs code while it loads that reaches outside the file: no registration into a shared object,
+  no `Date.now()`, no change to globals. The catalog lists of triggers, jobs and actions are computed in
+  the catalog handler, not while files load.
+
+`cogover-dev publish` (Dev CLI 0.22.0 or later, on a Workspace that supports it) prints the Load profile
+of the new version. This is the profile of this repository on a test Workspace, without a declaration:
+
+```text
+Load profile (measured at publish, warning threshold 1000 ms):
+  Merged bundle: 359.3 KiB, cold load 217 ms
+  Shared SDK: 182.4 KiB, cold load 60 ms
+  Parts: 39; entry points with a part: triggers 4/4, jobs 5/5, actions 2/2, routes 104/104
+  Runs on: merged bundle (entryPointParts not declared)
+    To run on the parts above, first read "Keep the module fast to load" in the @cogover/sdk usage guide: code that runs while a module loads must not
+    change anything outside that module. Then set "entryPointParts": true in cogover.json, or publish
+    with --parts (it takes effect where the platform runs entry points on parts).
+  Slowest parts (cold load without the SDK):
+    22 ms  src/routers/catalog.ts (74.5 KiB; 1 route)
+    11 ms  src/routers/actions.ts (12.8 KiB; 3 routes)
+    10 ms  src/routers/router.ts (3.3 KiB; 6 routes)
+```
+
+- `Merged bundle` and `Shared SDK`: size and cold load time of the whole module and of the SDK that
+  every part loads first. Times vary between measurements; compare numbers of the same profile.
+- `Parts` and `entry points with a part`: here every trigger, job, action and route (the 103 samples and
+  `GET /`) has one. An entry point without a part is listed under `Entry points without a part` with a
+  reason, and a file that runs code reaching outside itself while it loads is listed under
+  `Modules in every part`; this repository has neither.
+- `Runs on`: what the version runs on. Without a declaration it is the platform default, currently the
+  whole module.
+
+Entry points run on their parts only when the project declares that it follows the rules of that guide:
+`"entryPointParts": true` in `cogover.json`, or `cogover-dev publish --parts` for one publish. This needs
+Dev CLI 0.22.0 or later and a Workspace that supports it. Declare it when the profile shows a real gain,
+for example a `LOAD_TIME_HIGH` warning for the merged bundle, or when the whole module loads at least
+about 200 ms slower than the shared SDK plus the part of the entry point that must be fast (a
+before-change trigger, otherwise a route). Here the gain is about 217 − (60 + 5) ≈ 150 ms for the slowest
+before-change trigger, so `cogover.example.json` does not declare it. Read "Keep the module fast to load"
+in the usage guide before declaring: a declaration means you confirm that no code changes anything
+outside its file while it loads.
 
 ## Single-endpoint entry point
 
@@ -610,17 +667,19 @@ permissions, the push, notification and email samples reach real people, the tri
 version is active. The two actions appear in Process Builder and AI Agent Builder for every member of
 the Workspace, the Process and AI Agent samples start real instances and runs, and `POST /agents/deliver`
 makes an AI Agent send a real chat message to a personnel. Publish to a test
-Workspace, or remove the samples you do not want from `src/samples/index.ts`, `src/triggers/index.ts`
-and `src/actions/index.ts`. The route group samples need a Workspace that supports `router.route()`
-(see [Route groups](#route-groups)).
+Workspace, or remove the samples you do not want from the router of their area (`src/routers/<area>.ts`)
+and `src/samples/index.ts`, and the triggers, jobs and actions from `src/triggers/index.ts`,
+`src/jobs/index.ts` and `src/actions/index.ts`.
 
 ## Keeping up with SDK releases
 
 Each `@cogover/sdk` release is followed by an update of this repository:
 
 1. `npm install @cogover/sdk@<version>` and commit the lockfile.
-2. Add a sample for every new export or behavior, register it in `src/samples/index.ts`, and fix
-   samples affected by breaking changes.
+2. Add a sample for every new export or behavior: a catalog entry and a named handler in
+   `src/samples/<area>/<name>.ts`, the route in `src/routers/<area>.ts` (a new area also needs a
+   `router.route(...)` line in `src/main.ts`) and the entry in `src/samples/index.ts`. Fix samples affected
+   by breaking changes.
 3. `npm run check` runs the type checker, the tests and the coverage check; the coverage check lists
    every export of the installed SDK that no sample mentions.
 4. `npm run catalog -- --write` refreshes the sample tables in `README.md` and `README.vi.md`.
@@ -652,15 +711,17 @@ Cogover's answers. The other tests belong to the starter's local tooling.
 │   ├── objects.md            # the demo Objects, field by field
 │   └── sdk-sample-objects.xlsx
 └── src/
-    ├── main.ts               # registers every sample; GET / is the catalog
-    ├── sample.ts             # defineSample(): one route per sample
+    ├── main.ts               # imports, re-exports triggers/jobs/actions, mounts the area routers
+    ├── catalog.ts            # GET /: the catalog handler
+    ├── sample.ts             # SampleInfo (catalog entry) and SampleHandler types
     ├── workspace.d.ts        # typed declarations of the demo Objects
-    ├── actions/              # defineAction(): Custom Module Actions for Processes and AI Agents
+    ├── actions/              # defineAction(), one file per action; index.ts lists them
     ├── entries/define-script.ts
-    ├── jobs/                 # defineJob(): enqueued, scheduled, and Process/AI Agent completion jobs
-    ├── routers/              # child routers mounted with router.route()
-    ├── samples/<area>/<name>.ts
-    └── triggers/
+    ├── jobs/                 # defineJob(), one file per job; index.ts lists them
+    ├── routers/<area>.ts     # createRouter() and route registrations only, one per area
+    ├── samples/<area>/<name>.ts  # catalog entry and named handler of one route
+    ├── samples/index.ts      # every catalog entry, imported by the catalog only
+    └── triggers/             # defineTrigger(), one file per trigger; index.ts lists them
 ```
 
 ## License

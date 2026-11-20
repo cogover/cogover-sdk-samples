@@ -15,7 +15,10 @@ import { setOrderStatusAction } from "./set-order-status.js";
  */
 export const actions: readonly ActionDefinition[] = [scoreCustomerAction, setOrderStatusAction];
 
-export const actionManifests: readonly ActionManifest[] = actions.map(action => action.config);
+/** The normalized manifests, computed when asked (not while the file loads). */
+export function actionManifests(): readonly ActionManifest[] {
+    return actions.map(action => action.config);
+}
 
 /** The part of a manifest shown by the catalog route (`GET /`); `GET /actions/manifests` returns the rest. */
 export interface ActionSummary {
@@ -26,10 +29,12 @@ export interface ActionSummary {
     readonly timeoutMs: number;
 }
 
-export const actionSummaries: readonly ActionSummary[] = actionManifests.map(manifest => ({
-    key: manifest.key,
-    label: manifest.label,
-    exposeTo: manifest.exposeTo,
-    effect: manifest.effect,
-    timeoutMs: manifest.timeoutMs,
-}));
+export function actionSummaries(): readonly ActionSummary[] {
+    return actionManifests().map(manifest => ({
+        key: manifest.key,
+        label: manifest.label,
+        exposeTo: manifest.exposeTo,
+        effect: manifest.effect,
+        timeoutMs: manifest.timeoutMs,
+    }));
+}

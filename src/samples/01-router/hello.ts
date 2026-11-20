@@ -1,11 +1,12 @@
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * The smallest route. A handler returns any JSON-serializable value and Cogover answers
  * `200 application/json`. Routes are registered with `router.get(...)`/`router.addRoute(...)`
- * on the router created in `src/main.ts`.
+ * on a router created with `createRouter()`: here the router of this area, `src/routers/router.ts`, which
+ * `src/main.ts` mounts under `/router` and turns into the project handler with `router.toHandler()`.
  */
-export default defineSample({
+export default {
     id: "router.hello",
     method: "GET",
     path: "/router/hello",
@@ -13,5 +14,6 @@ export default defineSample({
     sdk: ["createRouter", "router.get", "router.addRoute", "router.toHandler", "ScriptHandler"],
     file: "src/samples/01-router/hello.ts",
     curl: `curl -s "$BASE/router/hello"`,
-    handler: () => ({ message: "Hello from @cogover/sdk", sentAt: new Date().toISOString() }),
-});
+} satisfies SampleInfo;
+
+export const routerHello: SampleHandler = () => ({ message: "Hello from @cogover/sdk", sentAt: new Date().toISOString() });

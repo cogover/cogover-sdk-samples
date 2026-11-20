@@ -1,5 +1,5 @@
 import type { ExpandLookups, SelectedFields, WorkspaceObjects } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 type OrderFields = WorkspaceObjects["sample_order"];
 
@@ -18,7 +18,7 @@ const EXPAND: ExpandLookups<SelectedFields<OrderFields, typeof ORDER_FIELDS>> = 
  * otherwise the read throws `PermissionDeniedError`; a slug that `sample_customer` does not have throws
  * `ValidationError`. A customer that cannot be read has no `fields`.
  */
-export default defineSample({
+export default {
     id: "records.expand-lookups-fields",
     method: "GET",
     path: "/records/expand-lookups/fields",
@@ -26,34 +26,35 @@ export default defineSample({
     sdk: ["records.list", "expandLookups", "ExpandLookups", "SelectedFields", "RecordReference.fields"],
     file: "src/samples/04-records-read/expand-lookups-fields.ts",
     curl: `curl -s "$BASE/records/expand-lookups/fields?limit=20"`,
-    handler: async ({ request, data }) => {
-        const rawLimit = Number(request.query.limit ?? "20");
-        const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 20;
+} satisfies SampleInfo;
 
-        const orders = data.object("sample_order");
-        const { fields } = orders;
-        const page = await orders.records.list({
-            where: fields.status.in(["new", "confirmed"]),
-            fields: ORDER_FIELDS,
-            expandLookups: EXPAND,
-            orderBy: [fields.created.desc()],
-            limit,
-        });
+export const recordsExpandLookupsFields: SampleHandler = async ({ request, data }) => {
+    const rawLimit = Number(request.query.limit ?? "20");
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 200) : 20;
 
-        const rows = page.items.map(item => {
-            const customer = item.fields.customer;
-            const creditLimit = customer?.fields?.credit_limit ?? null;
-            const total = item.fields.total ?? 0;
-            return {
-                id: item.id,
-                name: item.fields.name,
-                total,
-                customer: customer === null ? null : customer.name,
-                tier: customer?.fields?.tier ?? null,
-                creditLimit,
-                overLimit: creditLimit !== null && total > creditLimit,
-            };
-        });
-        return { checked: rows.length, overLimit: rows.filter(row => row.overLimit).length, rows };
-    },
-});
+    const orders = data.object("sample_order");
+    const { fields } = orders;
+    const page = await orders.records.list({
+        where: fields.status.in(["new", "confirmed"]),
+        fields: ORDER_FIELDS,
+        expandLookups: EXPAND,
+        orderBy: [fields.created.desc()],
+        limit,
+    });
+
+    const rows = page.items.map(item => {
+        const customer = item.fields.customer;
+        const creditLimit = customer?.fields?.credit_limit ?? null;
+        const total = item.fields.total ?? 0;
+        return {
+            id: item.id,
+            name: item.fields.name,
+            total,
+            customer: customer === null ? null : customer.name,
+            tier: customer?.fields?.tier ?? null,
+            creditLimit,
+            overLimit: creditLimit !== null && total > creditLimit,
+        };
+    });
+    return { checked: rows.length, overLimit: rows.filter(row => row.overLimit).length, rows };
+};
