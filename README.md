@@ -24,6 +24,8 @@ so local development, testing and publishing work exactly as in the starter. It 
   Process or an AI Agent run, declared with `defineJob`.
 - `src/actions/`: a read and a write Custom Module Action, declared with `defineAction` and the `s`
   schema builder, that Processes and AI Agents of the Workspace can call.
+- `src/routers/`: a group of routes in its own router, mounted by `src/main.ts` with
+  `router.route(prefix, childRouter)` (SDK 0.18.0; see [Route groups](#route-groups)).
 - `GET /`: the catalog. It lists every sample with its route, the SDK APIs it shows, its source file
   and a ready-to-run `curl`.
 - `src/entries/define-script.ts`: the single-endpoint entry style (`defineScript`) as an alternative
@@ -326,6 +328,14 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `POST /agents/deliver` | [26-agents/deliver.ts](src/samples/26-agents/deliver.ts) | `agents.start`, `AgentStartOptions.deliverTo`, `AgentDeliveryTarget`, `AgentResultCompletion`, `CogoverApiError` | agents.start(agentId, { instruction, deliverTo: { personnelId, conversation, title }, onResult }): let an AI Agent send a chat message to a personnel. |
 | `GET /agents/delivery/:runId` | [26-agents/delivery.ts](src/samples/26-agents/delivery.ts) | `agents.get`, `AgentRunState.delivery`, `AgentDelivery` | agents.get(runId).delivery: whether the chat message of a deliverTo run was SENT, NOT_SENT, BLOCKED or FAILED, and in which conversation. |
 
+### Route groups (router.route)
+
+| Route | File | SDK APIs | Summary |
+|---|---|---|---|
+| `GET /route-groups/customers/:customerId` | [27-route-groups/customer.ts](src/samples/27-route-groups/customer.ts) | `router.route`, `createRouter`, `request.params`, `records.get` | router.route(prefix, childRouter): the child route `/` answers at the prefix, whose :customerId is in request.params. |
+| `GET /route-groups/customers/:customerId/orders` | [27-route-groups/customer-orders.ts](src/samples/27-route-groups/customer-orders.ts) | `router.route`, `request.params`, `records.list`, `FilterCondition` | A route of the mounted router: list the orders of the customer named by the prefix parameter :customerId. |
+| `GET /route-groups/customers/:customerId/orders/:orderId` | [27-route-groups/customer-order.ts](src/samples/27-route-groups/customer-order.ts) | `router.route`, `request.params`, `records.get`, `NotFoundError` | Prefix and route parameters together: read one order of the customer; 404 when it belongs to another customer. |
+
 ### Record triggers
 
 | Key | Timing | Operations | File |
@@ -352,7 +362,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
 | `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
 
-Total: 100 routes, 4 record triggers, 5 background jobs and 2 Custom Module Actions.
+Total: 103 routes, 4 record triggers, 5 background jobs and 2 Custom Module Actions.
 <!-- catalog:end -->
 
 ## Reading records
@@ -542,6 +552,38 @@ message to one personnel; the message arrives in the AI chat of the agent and th
   send to one personnel per run and per day. Include the recipient in the `idempotencyKey`: a repeated
   key returns the first run even when `deliverTo` differs.
 
+## Route groups
+
+`src/routers/customer-router.ts` keeps three routes in their own router, created with `createRouter()`. The
+file contains only the router and its route registrations; the handlers are the samples of
+`src/samples/27-route-groups/`. `src/main.ts` mounts it under a prefix with a parameter:
+
+```typescript
+router.route("/route-groups/customers/:customerId", customerRouter);
+```
+
+| Route of `customerRouter` | Answers at |
+|---|---|
+| `GET /` | `GET /route-groups/customers/:customerId` |
+| `GET /orders` | `GET /route-groups/customers/:customerId/orders` |
+| `GET /orders/:orderId` | `GET /route-groups/customers/:customerId/orders/:orderId` |
+
+- The route `/` of the mounted router answers at the prefix itself. `request.params` holds the
+  parameters of the prefix and of the route together, and `request.path` is the full path.
+- A mounted route is an ordinary route: same `data`, identity, permissions and limits as a route
+  registered on the main router. Routes are matched as if they were registered where `route()` is
+  called; a duplicate or ambiguous route across routers throws `ValidationError` when the handler is built.
+
+**Requirements:** `router.route()` needs `@cogover/sdk` 0.18.0 or later **and** a Workspace whose Runtime
+supports it. A Workspace builds the project with the SDK of its own Runtime, so publishing this project
+to a Workspace that does not support `router.route()` yet fails. In that case remove the
+`router.route(...)` line and its import from `src/main.ts` and the three `routeGroups*` entries from
+`src/samples/index.ts`, or publish to a Workspace that supports it.
+
+Keeping a group in a router file that only `src/main.ts` imports is also what the SDK usage guide asks
+for in "Keep the module fast to load". This repository does not set `entryPointParts`, because its other
+routes are registered directly on the main router.
+
 ## Single-endpoint entry point
 
 `src/entries/define-script.ts` shows `defineScript`, the entry style for a project with one
@@ -569,7 +611,8 @@ version is active. The two actions appear in Process Builder and AI Agent Builde
 the Workspace, the Process and AI Agent samples start real instances and runs, and `POST /agents/deliver`
 makes an AI Agent send a real chat message to a personnel. Publish to a test
 Workspace, or remove the samples you do not want from `src/samples/index.ts`, `src/triggers/index.ts`
-and `src/actions/index.ts`.
+and `src/actions/index.ts`. The route group samples need a Workspace that supports `router.route()`
+(see [Route groups](#route-groups)).
 
 ## Keeping up with SDK releases
 
@@ -615,6 +658,7 @@ Cogover's answers. The other tests belong to the starter's local tooling.
     ├── actions/              # defineAction(): Custom Module Actions for Processes and AI Agents
     ├── entries/define-script.ts
     ├── jobs/                 # defineJob(): enqueued, scheduled, and Process/AI Agent completion jobs
+    ├── routers/              # child routers mounted with router.route()
     ├── samples/<area>/<name>.ts
     └── triggers/
 ```
