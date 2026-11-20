@@ -105,6 +105,7 @@ import orgApprovalCheck from "./20-org/approval-check.js";
 
 import notificationsSend from "./21-notifications/send.js";
 import notificationsOrderApproval from "./21-notifications/order-approval.js";
+import notificationsCategories from "./21-notifications/categories.js";
 
 import emailSenders from "./22-email/senders.js";
 import emailSend from "./22-email/send.js";
@@ -235,6 +236,7 @@ export const samples: readonly Sample[] = [
 
     notificationsSend,
     notificationsOrderApproval,
+    notificationsCategories,
 
     emailSenders,
     emailSend,

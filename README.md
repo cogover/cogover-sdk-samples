@@ -285,6 +285,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 |---|---|---|---|
 | `POST /notifications/send` | [21-notifications/send.ts](src/samples/21-notifications/send.ts) | `context.notifications`, `NotificationsApi`, `notifications.send`, `NotificationMessage`, `NotificationResult`, `NotificationContentType`, `NotificationDisplay` | notifications.send(message): notify people in their notification list, with an email copy per channel. |
 | `POST /notifications/order-approval/:orderId` | [21-notifications/order-approval.ts](src/samples/21-notifications/order-approval.ts) | `notifications.send`, `NotificationLink`, `NotificationLinkTarget`, `NotificationSender`, `idempotencyKey` | notifications.send with sender, link and idempotencyKey: ask approvers to review an order exactly once. |
+| `POST /notifications/categories` | [21-notifications/categories.ts](src/samples/21-notifications/categories.ts) | `notifications.send`, `NotificationMessage.categories`, `idempotencyKey` | notifications.send({ categories }): file a notification to the caller under category codes such as process or sales. |
 
 ### Email
 
@@ -351,7 +352,7 @@ The tables are generated from the catalog by `npm run catalog -- --write`.
 | `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
 | `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
 
-Total: 99 routes, 4 record triggers, 5 background jobs and 2 Custom Module Actions.
+Total: 100 routes, 4 record triggers, 5 background jobs and 2 Custom Module Actions.
 <!-- catalog:end -->
 
 ## Reading records
@@ -457,6 +458,13 @@ and works everywhere.
   Workspace needs its notification channels. Pass a channel record ID in `channel` to let the channel
   decide which deliveries (in-app, web push, mobile push, email copy) are used; without it all of
   them are. Personnel without a user account are returned in `skippedPersonnelIds`.
+- **Notification categories** (`POST /notifications/categories`, SDK 0.17.0): `categories` files the
+  notification under up to 10 categories, which recipients use to filter their notification list. Pass
+  category codes such as `process`, `sales` or `system` (the same in every Workspace) or category record
+  IDs. Entries that do not name an active category are ignored; when none is left the notification goes
+  to `system`, and without `categories` the Workspace assigns them. Categories do not change delivery.
+  The route notifies only the caller, without an email copy, and derives an `idempotencyKey` from the
+  caller and the categories, so the same list notifies once per 7 days unless the body passes another key.
 - **Email** (`GET /email/senders`, `POST /email/send`, `POST /email/customers/:customerId`): add the
   mailboxes to the `email` section of the Project identity policy and approve it for the version:
 

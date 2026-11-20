@@ -283,6 +283,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 |---|---|---|---|
 | `POST /notifications/send` | [21-notifications/send.ts](src/samples/21-notifications/send.ts) | `context.notifications`, `NotificationsApi`, `notifications.send`, `NotificationMessage`, `NotificationResult`, `NotificationContentType`, `NotificationDisplay` | notifications.send(message): notify people in their notification list, with an email copy per channel. |
 | `POST /notifications/order-approval/:orderId` | [21-notifications/order-approval.ts](src/samples/21-notifications/order-approval.ts) | `notifications.send`, `NotificationLink`, `NotificationLinkTarget`, `NotificationSender`, `idempotencyKey` | notifications.send with sender, link and idempotencyKey: ask approvers to review an order exactly once. |
+| `POST /notifications/categories` | [21-notifications/categories.ts](src/samples/21-notifications/categories.ts) | `notifications.send`, `NotificationMessage.categories`, `idempotencyKey` | notifications.send({ categories }): file a notification to the caller under category codes such as process or sales. |
 
 ### Email
 
@@ -349,7 +350,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
 | `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
 
-Tổng cộng: 99 route, 4 record trigger, 5 background job và 2 Custom Module Action.
+Tổng cộng: 100 route, 4 record trigger, 5 background job và 2 Custom Module Action.
 <!-- catalog:end -->
 
 ## Đọc record
@@ -454,6 +455,13 @@ nên chạy được ở mọi nơi.
   cần có notification channel. Truyền record ID của một channel vào `channel` để channel quyết định
   kênh giao (in-app, web push, mobile push, bản email); không truyền thì bật tất cả. Nhân sự chưa có
   tài khoản người dùng được trả về trong `skippedPersonnelIds`.
+- **Danh mục thông báo** (`POST /notifications/categories`, SDK 0.17.0): `categories` xếp thông báo vào
+  tối đa 10 danh mục, để người nhận lọc danh sách thông báo. Truyền `code` của danh mục như `process`,
+  `sales`, `system` (giống nhau ở mọi Workspace) hoặc record ID của danh mục. Mục không trỏ tới danh mục
+  đang hoạt động bị bỏ qua; không còn mục nào hợp lệ thì thông báo vào `system`, còn không truyền
+  `categories` thì Workspace tự gán. Danh mục không đổi cách giao. Route chỉ gửi cho chính người gọi,
+  không kèm bản email, và tạo `idempotencyKey` từ người gọi và danh sách danh mục, nên cùng một danh sách
+  chỉ gửi một lần trong 7 ngày trừ khi body truyền key khác.
 - **Email** (`GET /email/senders`, `POST /email/send`, `POST /email/customers/:customerId`): thêm các
   hộp thư vào mục `email` của identity policy của Project và duyệt cho version:
 

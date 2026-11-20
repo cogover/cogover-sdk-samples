@@ -423,6 +423,8 @@ function simulatedAnswer(request: BridgeRequest): unknown {
         }
         case "records.create":
             return "ORD-NEW";
+        case "notifications.send":
+            return { requestId: "NREQ1", notified: (payload.to as string[]).length, skippedPersonnelIds: [], duplicate: false };
         default:
             throw new Error(`unexpected capability ${request.operation}`);
     }
@@ -801,6 +803,39 @@ describe("record read samples with a simulated capability bridge", () => {
         const plain = await call("/agents/delivery/AGR1");
         assert.equal(plain.body.delivery, null);
         assert.equal(plain.body.outcome, "This run was started without deliverTo.");
+    });
+
+    test("notifications.send files the caller's notification under the categories, without an email copy", async () => {
+        const { body, requests } = await call("/notifications/categories", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ categories: ["process", "sales", "process"] }),
+        });
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0]?.operation, "notifications.send");
+        const payload = requests[0]?.payload ?? {};
+        assert.deepEqual(payload.to, ["PER1"], "only the caller is notified");
+        assert.deepEqual(payload.categories, ["process", "sales"], "the SDK removes duplicates");
+        assert.equal(payload.email, false);
+        assert.equal(payload.idempotencyKey, "notification-categories:PER1:process.sales");
+        assert.equal(body.notified, 1);
+        assert.equal(body.idempotencyKey, payload.idempotencyKey);
+
+        // The same categories in another order derive the same key, so the caller is not notified twice.
+        const again = await call("/notifications/categories", {
+            method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ categories: ["sales", "process"] }),
+        });
+        assert.equal(again.requests[0]?.payload.idempotencyKey, payload.idempotencyKey);
+
+        // The SDK rejects an invalid entry before anything is sent.
+        const start = calls.length;
+        for (const categories of [["not a code"], Array.from({ length: 11 }, (_, index) => `c${index}`), "process"]) {
+            const response = await fetch(`${base}/notifications/categories`, {
+                method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ categories }),
+            });
+            assert.equal(response.status, 400, `${JSON.stringify(categories)} should answer 400`);
+        }
+        assert.equal(calls.length, start, "nothing is sent for an invalid list");
     });
 
     test("no unexpected script errors were reported", () => {
