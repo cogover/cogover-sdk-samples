@@ -1,6 +1,6 @@
 import { CogoverApiError, NotFoundError, ValidationError } from "@cogover/sdk";
 import type { NotificationMessage, NotificationResult } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 interface Input {
     /** Category codes such as "process", "sales" or "system", or category record IDs. */
@@ -21,7 +21,7 @@ interface Input {
  * from the caller and the categories: the same list notifies the caller once per 7 days unless the body passes
  * another `idempotencyKey`. A key has at most 128 characters, so a long list needs an `idempotencyKey` of its own.
  */
-export default defineSample<Input>({
+export default {
     id: "notifications.categories",
     method: "POST",
     path: "/notifications/categories",
@@ -29,42 +29,43 @@ export default defineSample<Input>({
     sdk: ["notifications.send", "NotificationMessage.categories", "idempotencyKey"],
     file: "src/samples/21-notifications/categories.ts",
     curl: `curl -s -X POST "$BASE/notifications/categories" -H "Content-Type: application/json" --data '{"categories":["process","sales"]}'`,
-    handler: async ({ request, notifications, invocation }) => {
-        const { categories, title, idempotencyKey } = request.body;
-        // Only the shape is checked here; notifications.send validates the entries themselves.
-        if (!Array.isArray(categories) || !categories.every(entry => typeof entry === "string")) {
-            throw new ValidationError("categories must be a list of category codes or record IDs");
-        }
-        if (title !== undefined && typeof title !== "string") throw new ValidationError("title must be a string");
-        if (idempotencyKey !== undefined && typeof idempotencyKey !== "string") throw new ValidationError("idempotencyKey must be a string");
+} satisfies SampleInfo;
 
-        const personnelId = invocation.user?.membership.personnelId;
-        if (personnelId === undefined) {
-            return { r: 1003, msg: "Call this route as a user: it notifies the caller only." };
-        }
-        // Sorted and without duplicates, so ["sales", "process"] and ["process", "sales"] use the same key.
-        const key = idempotencyKey ?? `notification-categories:${personnelId}:${[...new Set(categories)].sort().join(".")}`;
+export const notificationsCategories: SampleHandler<Input> = async ({ request, notifications, invocation }) => {
+    const { categories, title, idempotencyKey } = request.body;
+    // Only the shape is checked here; notifications.send validates the entries themselves.
+    if (!Array.isArray(categories) || !categories.every(entry => typeof entry === "string")) {
+        throw new ValidationError("categories must be a list of category codes or record IDs");
+    }
+    if (title !== undefined && typeof title !== "string") throw new ValidationError("title must be a string");
+    if (idempotencyKey !== undefined && typeof idempotencyKey !== "string") throw new ValidationError("idempotencyKey must be a string");
 
-        const message: NotificationMessage = {
-            to: [personnelId],
-            title: title ?? `SDK sample: categories ${categories.join(", ") || "(none)"}`,
-            content: "This notification was filed under the categories the request named. Filter the notification list by category to find it.",
-            categories,
-            email: false,
-            idempotencyKey: key,
-        };
-        try {
-            const result: NotificationResult = await notifications.send(message);
-            return { ...result, categories, idempotencyKey: key };
-        } catch (error) {
-            if (error instanceof NotFoundError) {
-                // The Workspace has no notification channels set up (resource "object", id "notification_channel").
-                return { r: 1004, msg: "Notifications are not set up in this Workspace.", resource: error.resource };
-            }
-            if (error instanceof CogoverApiError && error.code === "NOTIFICATIONS_DISABLED") {
-                return { r: 1030, msg: "Notifications are not enabled for this Workspace.", code: error.code };
-            }
-            throw error;
+    const personnelId = invocation.user?.membership.personnelId;
+    if (personnelId === undefined) {
+        return { r: 1003, msg: "Call this route as a user: it notifies the caller only." };
+    }
+    // Sorted and without duplicates, so ["sales", "process"] and ["process", "sales"] use the same key.
+    const key = idempotencyKey ?? `notification-categories:${personnelId}:${[...new Set(categories)].sort().join(".")}`;
+
+    const message: NotificationMessage = {
+        to: [personnelId],
+        title: title ?? `SDK sample: categories ${categories.join(", ") || "(none)"}`,
+        content: "This notification was filed under the categories the request named. Filter the notification list by category to find it.",
+        categories,
+        email: false,
+        idempotencyKey: key,
+    };
+    try {
+        const result: NotificationResult = await notifications.send(message);
+        return { ...result, categories, idempotencyKey: key };
+    } catch (error) {
+        if (error instanceof NotFoundError) {
+            // The Workspace has no notification channels set up (resource "object", id "notification_channel").
+            return { r: 1004, msg: "Notifications are not set up in this Workspace.", resource: error.resource };
         }
-    },
-});
+        if (error instanceof CogoverApiError && error.code === "NOTIFICATIONS_DISABLED") {
+            return { r: 1030, msg: "Notifications are not enabled for this Workspace.", code: error.code };
+        }
+        throw error;
+    }
+};

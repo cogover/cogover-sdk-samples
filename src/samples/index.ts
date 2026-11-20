@@ -1,4 +1,4 @@
-import type { Sample } from "../sample.js";
+import type { SampleInfo } from "../sample.js";
 
 import routerHello from "./01-router/hello.js";
 import routerPathParams from "./01-router/path-params.js";
@@ -131,10 +131,12 @@ import routeGroupsCustomerOrders from "./27-route-groups/customer-orders.js";
 import routeGroupsCustomerOrder from "./27-route-groups/customer-order.js";
 
 /**
- * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
- * self-contained bundle and does not allow dynamic imports, so a new sample is added here by hand.
+ * Every sample, in catalog order, for the catalog route (`src/catalog.ts`), the README tables and the tests. The list
+ * is static on purpose: the Cogover compiler does not allow dynamic imports, so a new sample is added here by hand,
+ * and its route in the router of its area (`src/routers/<area>.ts`). Only the catalog route imports this file, so
+ * the part of every other entry point stays small.
  */
-export const samples: readonly Sample[] = [
+export const samples: readonly SampleInfo[] = [
     routerHello,
     routerPathParams,
     routerQuery,
@@ -261,7 +263,6 @@ export const samples: readonly Sample[] = [
     agentsDeliver,
     agentsDelivery,
 
-    // Served by the child router of src/routers/customer-router.ts, which src/main.ts mounts with router.route().
     routeGroupsCustomer,
     routeGroupsCustomerOrders,
     routeGroupsCustomerOrder,

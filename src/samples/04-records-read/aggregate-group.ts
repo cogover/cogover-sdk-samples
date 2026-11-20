@@ -7,7 +7,7 @@ import type {
     GroupedAggregateOptions,
     WorkspaceObjects,
 } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 type OrderFields = WorkspaceObjects["sample_order"];
 
@@ -36,7 +36,7 @@ type CustomerGroup = AggregateGroup<CustomerKey, AggregateValues<typeof METRICS>
  * A client from `data.asUser()` cannot group (its type does not accept `groupBy`); group as the caller or
  * through `data.asSystem()`.
  */
-export default defineSample({
+export default {
     id: "records.aggregate-group",
     method: "GET",
     path: "/records/aggregate/by-customer",
@@ -44,35 +44,36 @@ export default defineSample({
     sdk: ["records.aggregate", "GroupedAggregateOptions", "AggregateGroupResult", "AggregateGroup", "AggregateGroupKey"],
     file: "src/samples/04-records-read/aggregate-group.ts",
     curl: `curl -s "$BASE/records/aggregate/by-customer?limit=5"`,
-    handler: async ({ request, data }) => {
-        const rawLimit = Number(request.query.limit ?? "5");
-        if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 100) {
-            throw new ValidationError("limit must be an integer from 1 to 100");
-        }
-        const orders = data.object("sample_order");
-        const options: GroupedAggregateOptions<OrderFields, typeof METRICS, typeof GROUP_BY> = {
-            where: orders.fields.status.neq("cancelled"),
-            groupBy: GROUP_BY,
-            metrics: METRICS,
-            limit: rawLimit,
-        };
-        const result: AggregateGroupResult<CustomerKey, AggregateValues<typeof METRICS>> = await orders.records.aggregate(options);
+} satisfies SampleInfo;
 
-        const customerIds = result.groups.map(group => group.key.customer);
-        const customers = customerIds.length === 0
-            ? { records: [], missingIds: [] }
-            : await data.object("sample_customer").records.getMany(customerIds, { fields: ["name"] });
-        const nameById = new Map(customers.records.map(customer => [customer.id, customer.fields.name]));
+export const recordsAggregateGroup: SampleHandler = async ({ request, data }) => {
+    const rawLimit = Number(request.query.limit ?? "5");
+    if (!Number.isInteger(rawLimit) || rawLimit < 1 || rawLimit > 100) {
+        throw new ValidationError("limit must be an integer from 1 to 100");
+    }
+    const orders = data.object("sample_order");
+    const options: GroupedAggregateOptions<OrderFields, typeof METRICS, typeof GROUP_BY> = {
+        where: orders.fields.status.neq("cancelled"),
+        groupBy: GROUP_BY,
+        metrics: METRICS,
+        limit: rawLimit,
+    };
+    const result: AggregateGroupResult<CustomerKey, AggregateValues<typeof METRICS>> = await orders.records.aggregate(options);
 
-        const groups: CustomerGroup[] = result.groups;
-        return {
-            truncated: result.truncated,
-            customers: groups.map(group => ({
-                customerId: group.key.customer,
-                // null when the caller may not read that customer.
-                name: nameById.get(group.key.customer) ?? null,
-                ...group.values,
-            })),
-        };
-    },
-});
+    const customerIds = result.groups.map(group => group.key.customer);
+    const customers = customerIds.length === 0
+        ? { records: [], missingIds: [] }
+        : await data.object("sample_customer").records.getMany(customerIds, { fields: ["name"] });
+    const nameById = new Map(customers.records.map(customer => [customer.id, customer.fields.name]));
+
+    const groups: CustomerGroup[] = result.groups;
+    return {
+        truncated: result.truncated,
+        customers: groups.map(group => ({
+            customerId: group.key.customer,
+            // null when the caller may not read that customer.
+            name: nameById.get(group.key.customer) ?? null,
+            ...group.values,
+        })),
+    };
+};

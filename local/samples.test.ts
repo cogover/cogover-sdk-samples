@@ -44,6 +44,16 @@ describe("sample catalog", () => {
         }
     });
 
+    test("the area routers serve exactly the catalog routes, in catalog order, then GET /", () => {
+        // The handler built by router.toHandler() describes its flattened route table, mounted routers included.
+        const table = (handler as unknown as { __cogoverRoutes?: { routes: readonly { method: string; path: string }[] } }).__cogoverRoutes;
+        assert.ok(table !== undefined, "@cogover/sdk 0.18.0 or later describes the route table");
+        assert.deepEqual(
+            table.routes.map(route => `${route.method} ${route.path}`),
+            [...samples.map(sample => `${sample.method} ${sample.path}`), "GET /"],
+        );
+    });
+
     test("triggers have unique keys and target the demo Object", () => {
         const keys = triggers.map(trigger => trigger.key);
         assert.equal(new Set(keys).size, keys.length);
@@ -120,10 +130,10 @@ describe("routes that need no Development Session", () => {
         const catalog = await json(response);
         assert.equal(catalog.name, "cogover-sdk-samples");
         assert.equal(catalog.sampleCount, samples.length);
-        const listed = catalog.samples as { id: string; curl: string; register?: unknown }[];
+        const listed = catalog.samples as { id: string; curl: string; handler?: unknown }[];
         assert.equal(listed.length, samples.length);
         assert.equal(listed[0]?.id, "router.hello");
-        assert.equal(listed[0]?.register, undefined, "functions must not leak into the catalog");
+        assert.equal(listed[0]?.handler, undefined, "functions must not leak into the catalog");
         assert.deepEqual((catalog.triggers as { key: string }[]).map(trigger => trigger.key), triggers.map(trigger => trigger.key));
         assert.deepEqual((catalog.jobs as { key: string }[]).map(job => job.key), jobs.map(job => job.key));
         assert.deepEqual(catalog.actions, [

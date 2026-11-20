@@ -1,6 +1,6 @@
 import { NotFoundError } from "@cogover/sdk";
 import type { UrlValue, WorkspaceObjects } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 type CustomerFields = WorkspaceObjects["sample_customer"];
 
@@ -13,7 +13,7 @@ interface Input {
  * URL (`UrlValue`), decimal, long text; `null` clears a field. The customer is deleted at the end
  * unless `keep` is true (delete it later with `/records/delete-many` and `object: "sample_customer"`).
  */
-export default defineSample<Input>({
+export default {
     id: "records.field-values",
     method: "POST",
     path: "/records/field-values",
@@ -21,33 +21,34 @@ export default defineSample<Input>({
     sdk: ["UrlValue", "CreateFields", "UpdateFields", "records.create", "records.update", "records.get", "records.deleteMany"],
     file: "src/samples/05-records-write/field-values.ts",
     curl: `curl -s -X POST "$BASE/records/field-values" -H "Content-Type: application/json" --data '{"keep":false}'`,
-    handler: async ({ request, data }) => {
-        const keep = request.body.keep === true;
-        const customers = data.object("sample_customer");
-        const website: UrlValue = { url: "https://example.com", alias: "Example" };
+} satisfies SampleInfo;
 
-        const id = await customers.records.create({
-            name: `Field values ${Date.now()}`,
-            email: `field-values-${Date.now()}@example.com`,
-            phone: "+84 900 000 000",
-            tier: "silver",
-            is_active: true,
-            website,
-            credit_limit: 2_500_000.5,
-            note: "temporary note",
-        });
-        // `null` clears a field; other fields keep their values.
-        await customers.records.update(id, { note: null, tier: "gold" });
+export const recordsFieldValues: SampleHandler<Input> = async ({ request, data }) => {
+    const keep = request.body.keep === true;
+    const customers = data.object("sample_customer");
+    const website: UrlValue = { url: "https://example.com", alias: "Example" };
 
-        // Listing every declared field makes the result type equal to `CustomerFields`; `fields: "*"` would
-        // too, but it can also return fields that the policy grants and `workspace.d.ts` does not declare.
-        const stored = await customers.records.get(id, {
-            fields: ["name", "email", "phone", "tier", "is_active", "website", "credit_limit", "note"],
-        });
-        if (stored === null) throw new NotFoundError("sample_customer", id);
-        const fields: CustomerFields = stored.fields;
+    const id = await customers.records.create({
+        name: `Field values ${Date.now()}`,
+        email: `field-values-${Date.now()}@example.com`,
+        phone: "+84 900 000 000",
+        tier: "silver",
+        is_active: true,
+        website,
+        credit_limit: 2_500_000.5,
+        note: "temporary note",
+    });
+    // `null` clears a field; other fields keep their values.
+    await customers.records.update(id, { note: null, tier: "gold" });
 
-        if (!keep) await customers.records.deleteMany([id]);
-        return { id, kept: keep, fields, createdAt: stored.system.createdAt };
-    },
-});
+    // Listing every declared field makes the result type equal to `CustomerFields`; `fields: "*"` would
+    // too, but it can also return fields that the policy grants and `workspace.d.ts` does not declare.
+    const stored = await customers.records.get(id, {
+        fields: ["name", "email", "phone", "tier", "is_active", "website", "credit_limit", "note"],
+    });
+    if (stored === null) throw new NotFoundError("sample_customer", id);
+    const fields: CustomerFields = stored.fields;
+
+    if (!keep) await customers.records.deleteMany([id]);
+    return { id, kept: keep, fields, createdAt: stored.system.createdAt };
+};

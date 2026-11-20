@@ -8,7 +8,7 @@ import type {
     SystemInvocationContext,
     UserInvocationContext,
 } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * `invocation` is an immutable snapshot of the authenticated identity and workspace of this
@@ -18,7 +18,7 @@ import { defineSample } from "../../sample.js";
  * `identity` is `"user"` for a signed-in caller, `"system"` for a scheduled job or an
  * administrator's enqueue, and `"inbound"` for a webhook call (see `src/samples/19-inbound/`).
  */
-export default defineSample({
+export default {
     id: "invocation.snapshot",
     method: "GET",
     path: "/invocation",
@@ -30,44 +30,45 @@ export default defineSample({
     ],
     file: "src/samples/03-invocation/invocation.ts",
     curl: `curl -s "$BASE/invocation"`,
-    handler: ({ invocation }) => {
-        const snapshot: InvocationContext = invocation;
-        const workspace: CurrentWorkspace = snapshot.workspace;
-        const workspaceSummary = {
-            id: workspace.id,
-            name: workspace.name ?? null,
-            domain: workspace.domain ?? null,
-            language: workspace.language ?? null,
-            timezone: workspace.timezone ?? null,
-        };
-        switch (snapshot.identity) {
-            case "system": {
-                const system: SystemInvocationContext = snapshot;
-                return { identity: system.identity, workspace: workspaceSummary, user: system.user };
-            }
-            case "inbound": {
-                const inbound: InboundInvocationContext = snapshot;
-                return { identity: inbound.identity, workspace: workspaceSummary, user: inbound.user, inbound: inbound.inbound };
-            }
-            case "user": {
-                const user: UserInvocationContext = snapshot;
-                const profile: CurrentUser = user.user;
-                const membership: CurrentWorkspaceMembership = profile.membership;
-                const roles: readonly CurrentWorkspaceRole[] = membership.roles;
-                return {
-                    identity: user.identity,
-                    workspace: workspaceSummary,
-                    user: {
-                        accountId: profile.accountId,
-                        email: profile.email ?? null,
-                        fullName: [profile.firstName, profile.lastName].filter(Boolean).join(" ") || null,
-                        personnelId: membership.personnelId ?? null,
-                        language: membership.language ?? profile.language ?? null,
-                        isSuperAdmin: membership.isSuperAdmin,
-                        roles: roles.map(role => ({ id: role.id, name: role.name })),
-                    },
-                };
-            }
+} satisfies SampleInfo;
+
+export const invocationSnapshot: SampleHandler = ({ invocation }) => {
+    const snapshot: InvocationContext = invocation;
+    const workspace: CurrentWorkspace = snapshot.workspace;
+    const workspaceSummary = {
+        id: workspace.id,
+        name: workspace.name ?? null,
+        domain: workspace.domain ?? null,
+        language: workspace.language ?? null,
+        timezone: workspace.timezone ?? null,
+    };
+    switch (snapshot.identity) {
+        case "system": {
+            const system: SystemInvocationContext = snapshot;
+            return { identity: system.identity, workspace: workspaceSummary, user: system.user };
         }
-    },
-});
+        case "inbound": {
+            const inbound: InboundInvocationContext = snapshot;
+            return { identity: inbound.identity, workspace: workspaceSummary, user: inbound.user, inbound: inbound.inbound };
+        }
+        case "user": {
+            const user: UserInvocationContext = snapshot;
+            const profile: CurrentUser = user.user;
+            const membership: CurrentWorkspaceMembership = profile.membership;
+            const roles: readonly CurrentWorkspaceRole[] = membership.roles;
+            return {
+                identity: user.identity,
+                workspace: workspaceSummary,
+                user: {
+                    accountId: profile.accountId,
+                    email: profile.email ?? null,
+                    fullName: [profile.firstName, profile.lastName].filter(Boolean).join(" ") || null,
+                    personnelId: membership.personnelId ?? null,
+                    language: membership.language ?? profile.language ?? null,
+                    isSuperAdmin: membership.isSuperAdmin,
+                    roles: roles.map(role => ({ id: role.id, name: role.name })),
+                },
+            };
+        }
+    }
+};

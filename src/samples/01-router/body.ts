@@ -1,6 +1,6 @@
 import { ValidationError } from "@cogover/sdk";
 import type { ScriptRequest } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * A typed JSON body. `TInput` only types `request.body` at compile time; it does not validate the
@@ -18,7 +18,7 @@ interface Output {
     readonly lineTotal: number;
 }
 
-export default defineSample<Input, Output>({
+export default {
     id: "router.body",
     method: "POST",
     path: "/router/body",
@@ -26,18 +26,19 @@ export default defineSample<Input, Output>({
     sdk: ["request.body", "ScriptRequest", "ValidationError"],
     file: "src/samples/01-router/body.ts",
     curl: `curl -s -X POST "$BASE/router/body" -H "Content-Type: application/json" --data '{"name":"Laptop","quantity":2,"unitPrice":1500}'`,
-    handler: ({ request }) => {
-        const typed: ScriptRequest<Input> = request;
-        const { name, quantity, unitPrice } = typed.body;
-        if (typeof name !== "string" || name.trim().length === 0) {
-            throw new ValidationError("name must be a non-empty string");
-        }
-        if (typeof quantity !== "number" || !Number.isInteger(quantity) || quantity < 1) {
-            throw new ValidationError("quantity must be a positive integer");
-        }
-        if (typeof unitPrice !== "number" || !Number.isFinite(unitPrice) || unitPrice < 0) {
-            throw new ValidationError("unitPrice must be a non-negative number", { field: "unitPrice" });
-        }
-        return { name: name.trim(), quantity, lineTotal: quantity * unitPrice };
-    },
-});
+} satisfies SampleInfo;
+
+export const routerBody: SampleHandler<Input, Output> = ({ request }) => {
+    const typed: ScriptRequest<Input> = request;
+    const { name, quantity, unitPrice } = typed.body;
+    if (typeof name !== "string" || name.trim().length === 0) {
+        throw new ValidationError("name must be a non-empty string");
+    }
+    if (typeof quantity !== "number" || !Number.isInteger(quantity) || quantity < 1) {
+        throw new ValidationError("quantity must be a positive integer");
+    }
+    if (typeof unitPrice !== "number" || !Number.isFinite(unitPrice) || unitPrice < 0) {
+        throw new ValidationError("unitPrice must be a non-negative number", { field: "unitPrice" });
+    }
+    return { name: name.trim(), quantity, lineTotal: quantity * unitPrice };
+};

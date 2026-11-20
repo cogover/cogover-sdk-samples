@@ -8,7 +8,7 @@ import {
 } from "@cogover/sdk";
 import type { ProcessCompletion, ProcessesApi, ProcessStartOptions, ProcessStartResult } from "@cogover/sdk";
 import type { OrderProcessPayload } from "../../jobs/process-completed.js";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const detail = (error: CogoverApiError, key: string): unknown => isRecord(error.details) ? error.details[key] ?? null : null;
@@ -34,7 +34,7 @@ interface Input {
  * `PROCESSES_NOT_ALLOWED`. The Process starts as the caller, and Cogover still checks that the caller may start
  * it. A local Development Session starts real instances but refuses `onComplete`: send `"onComplete": false`.
  */
-export default defineSample<Input>({
+export default {
     id: "processes.start",
     method: "POST",
     path: "/processes/start",
@@ -42,57 +42,58 @@ export default defineSample<Input>({
     sdk: ["context.processes", "ProcessesApi", "processes.start", "ProcessStartOptions", "ProcessStartResult", "ProcessCompletion"],
     file: "src/samples/25-processes/start.ts",
     curl: `curl -s -X POST "$BASE/processes/start" -H "Content-Type: application/json" --data '{"processInfoId":"<processInfoId>","orderId":"<sample_order id>","idempotencyKey":"order-approval:<sample_order id>"}'`,
-    handler: async ({ request, data, processes }) => {
-        const api: ProcessesApi = processes;
-        const { processInfoId, orderId, input, idempotencyKey, onComplete } = request.body;
-        if (typeof processInfoId !== "string" || processInfoId.length === 0) throw new ValidationError("processInfoId is required");
-        if (typeof orderId !== "string" || orderId.length === 0) throw new ValidationError("orderId is required");
-        if (input !== undefined && !isRecord(input)) throw new ValidationError("input must be an object of Process input variables");
-        if (idempotencyKey !== undefined && typeof idempotencyKey !== "string") throw new ValidationError("idempotencyKey must be a string");
-        if (onComplete !== undefined && typeof onComplete !== "boolean") throw new ValidationError("onComplete must be a boolean");
+} satisfies SampleInfo;
 
-        const order = await data.object("sample_order").records.get(orderId, { fields: ["name"] });
-        if (order === null) throw new NotFoundError("sample_order", orderId);
+export const processesStart: SampleHandler<Input> = async ({ request, data, processes }) => {
+    const api: ProcessesApi = processes;
+    const { processInfoId, orderId, input, idempotencyKey, onComplete } = request.body;
+    if (typeof processInfoId !== "string" || processInfoId.length === 0) throw new ValidationError("processInfoId is required");
+    if (typeof orderId !== "string" || orderId.length === 0) throw new ValidationError("orderId is required");
+    if (input !== undefined && !isRecord(input)) throw new ValidationError("input must be an object of Process input variables");
+    if (idempotencyKey !== undefined && typeof idempotencyKey !== "string") throw new ValidationError("idempotencyKey must be a string");
+    if (onComplete !== undefined && typeof onComplete !== "boolean") throw new ValidationError("onComplete must be a boolean");
 
-        const payload: OrderProcessPayload = { orderId: order.id, orderName: order.fields.name };
-        const completion: ProcessCompletion = { job: "sample_process_completed", payload };
-        const options: ProcessStartOptions = {
-            input: input ?? { order_id: order.id },
-            instanceName: `Approve ${order.fields.name}`.slice(0, 255),
-            ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
-            ...(onComplete === false ? {} : { onComplete: completion }),
-        };
-        try {
-            const started: ProcessStartResult = await api.start(processInfoId, options);
-            return { ...started, next: `GET /processes/get/${started.instanceId}` };
-        } catch (error) {
-            if (error instanceof PermissionDeniedError) {
-                // PROCESSES_NOT_ALLOWED (policy), PROCESS_START_DENIED (the caller may not start it), or a read-only execution.
-                return { r: 1003, msg: "This project or caller may not start the Process.", reason: detail(error, "reason") };
-            }
-            if (error instanceof NotFoundError) return { r: 1004, msg: "The Process does not exist or is not active.", code: error.code };
-            if (error instanceof ValidationError) {
-                // Also an onComplete job the active version does not declare, or a start the Process service rejected.
-                return { r: 1006, msg: "The Process could not be started with these values.", detail: error.message, upstreamCode: detail(error, "upstreamCode") };
-            }
-            if (error instanceof RateLimitError) return { r: 1029, msg: "Too many Processes were started; try again later.", code: error.code };
-            if (error instanceof RetryableError) {
-                // true: the instance may exist. Retrying with the same idempotencyKey completes that start instead of a second one.
-                return { r: 1012, msg: "Temporary failure; retry with the same idempotencyKey.", writesMayHaveCompleted: detail(error, "writesMayHaveCompleted") };
-            }
-            if (error instanceof CogoverApiError) {
-                switch (error.code) {
-                    case "NOT_SUPPORTED":
-                        return { r: 1014, msg: "onComplete runs only in a published version; send \"onComplete\": false locally.", code: error.code };
-                    case "IDEMPOTENCY_CONFLICT":
-                        return { r: 1013, msg: "Another identity already used this idempotencyKey.", code: error.code };
-                    case "MAX_HOP_EXCEEDED":
-                        return { r: 1015, msg: "The automation budget of this chain is used up.", code: error.code };
-                    case "PROCESSES_DISABLED":
-                        return { r: 1030, msg: "Processes are not available in this environment.", code: error.code };
-                }
-            }
-            throw error;
+    const order = await data.object("sample_order").records.get(orderId, { fields: ["name"] });
+    if (order === null) throw new NotFoundError("sample_order", orderId);
+
+    const payload: OrderProcessPayload = { orderId: order.id, orderName: order.fields.name };
+    const completion: ProcessCompletion = { job: "sample_process_completed", payload };
+    const options: ProcessStartOptions = {
+        input: input ?? { order_id: order.id },
+        instanceName: `Approve ${order.fields.name}`.slice(0, 255),
+        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+        ...(onComplete === false ? {} : { onComplete: completion }),
+    };
+    try {
+        const started: ProcessStartResult = await api.start(processInfoId, options);
+        return { ...started, next: `GET /processes/get/${started.instanceId}` };
+    } catch (error) {
+        if (error instanceof PermissionDeniedError) {
+            // PROCESSES_NOT_ALLOWED (policy), PROCESS_START_DENIED (the caller may not start it), or a read-only execution.
+            return { r: 1003, msg: "This project or caller may not start the Process.", reason: detail(error, "reason") };
         }
-    },
-});
+        if (error instanceof NotFoundError) return { r: 1004, msg: "The Process does not exist or is not active.", code: error.code };
+        if (error instanceof ValidationError) {
+            // Also an onComplete job the active version does not declare, or a start the Process service rejected.
+            return { r: 1006, msg: "The Process could not be started with these values.", detail: error.message, upstreamCode: detail(error, "upstreamCode") };
+        }
+        if (error instanceof RateLimitError) return { r: 1029, msg: "Too many Processes were started; try again later.", code: error.code };
+        if (error instanceof RetryableError) {
+            // true: the instance may exist. Retrying with the same idempotencyKey completes that start instead of a second one.
+            return { r: 1012, msg: "Temporary failure; retry with the same idempotencyKey.", writesMayHaveCompleted: detail(error, "writesMayHaveCompleted") };
+        }
+        if (error instanceof CogoverApiError) {
+            switch (error.code) {
+                case "NOT_SUPPORTED":
+                    return { r: 1014, msg: "onComplete runs only in a published version; send \"onComplete\": false locally.", code: error.code };
+                case "IDEMPOTENCY_CONFLICT":
+                    return { r: 1013, msg: "Another identity already used this idempotencyKey.", code: error.code };
+                case "MAX_HOP_EXCEEDED":
+                    return { r: 1015, msg: "The automation budget of this chain is used up.", code: error.code };
+                case "PROCESSES_DISABLED":
+                    return { r: 1030, msg: "Processes are not available in this environment.", code: error.code };
+            }
+        }
+        throw error;
+    }
+};

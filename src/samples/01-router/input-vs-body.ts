@@ -1,5 +1,5 @@
 import type { RequestMethod } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * `input` is the whole invocation input, including metadata Cogover adds; `request.body` is the
@@ -9,7 +9,7 @@ import { defineSample } from "../../sample.js";
 const keysOf = (value: unknown): string[] =>
     value !== null && typeof value === "object" && !Array.isArray(value) ? Object.keys(value) : [];
 
-export default defineSample({
+export default {
     id: "router.input-vs-body",
     method: "POST",
     path: "/router/input-vs-body",
@@ -17,14 +17,15 @@ export default defineSample({
     sdk: ["context.input", "request.method", "request.path", "RequestMethod"],
     file: "src/samples/01-router/input-vs-body.ts",
     curl: `curl -s -X POST "$BASE/router/input-vs-body" -H "Content-Type: application/json" --data '{"orderId":"ORD-1","note":"hello"}'`,
-    handler: ({ input, request }) => {
-        const method: RequestMethod = request.method;
-        return {
-            method,
-            path: request.path,
-            bodyKeys: keysOf(request.body),
-            inputKeys: keysOf(input),
-            note: "request.body excludes invocation metadata and transport fields; use it for business data.",
-        };
-    },
-});
+} satisfies SampleInfo;
+
+export const routerInputVsBody: SampleHandler = ({ input, request }) => {
+    const method: RequestMethod = request.method;
+    return {
+        method,
+        path: request.path,
+        bodyKeys: keysOf(request.body),
+        inputKeys: keysOf(input),
+        note: "request.body excludes invocation metadata and transport fields; use it for business data.",
+    };
+};

@@ -1,6 +1,6 @@
 import { NotFoundError } from "@cogover/sdk";
 import type { CogoverRecord, FieldSelection, WorkspaceObjects } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 type OrderFields = WorkspaceObjects["sample_order"];
 
@@ -16,7 +16,7 @@ const EVERY_FIELD = "*" satisfies FieldSelection<OrderFields>;
  * 1 MiB capability result limit, especially with `getMany` or a `list` page of 200 records. Lookups are still
  * not expanded: `customer.name` is `""`.
  */
-export default defineSample({
+export default {
     id: "records.fields-all",
     method: "GET",
     path: "/records/fields-all/:recordId",
@@ -24,24 +24,25 @@ export default defineSample({
     sdk: ["records.get", 'fields: "*"', "FieldSelection", "CogoverRecord"],
     file: "src/samples/04-records-read/fields-all.ts",
     curl: `curl -s "$BASE/records/fields-all/<recordId>"`,
-    handler: async ({ request, data }) => {
-        const recordId = request.params.recordId ?? "";
-        const orders = data.object("sample_order");
-        // With "*" the result type is every declared field of `sample_order`.
-        const order: CogoverRecord<OrderFields> | null = await orders.records.get(recordId, { fields: EVERY_FIELD });
-        if (order === null) throw new NotFoundError("sample_order", recordId);
+} satisfies SampleInfo;
 
-        const returned = Object.keys(order.fields).sort();
-        const declared: readonly (keyof OrderFields)[] = [
-            "name", "customer", "status", "subtotal", "discount", "total", "ordered_at", "tags", "files", "note",
-        ];
-        return {
-            id: order.id,
-            returnedFields: returned,
-            // Declared fields that the project policy did not grant, if any.
-            notGranted: declared.filter(slug => !(slug in order.fields)),
-            fields: order.fields,
-            system: order.system,
-        };
-    },
-});
+export const recordsFieldsAll: SampleHandler = async ({ request, data }) => {
+    const recordId = request.params.recordId ?? "";
+    const orders = data.object("sample_order");
+    // With "*" the result type is every declared field of `sample_order`.
+    const order: CogoverRecord<OrderFields> | null = await orders.records.get(recordId, { fields: EVERY_FIELD });
+    if (order === null) throw new NotFoundError("sample_order", recordId);
+
+    const returned = Object.keys(order.fields).sort();
+    const declared: readonly (keyof OrderFields)[] = [
+        "name", "customer", "status", "subtotal", "discount", "total", "ordered_at", "tags", "files", "note",
+    ];
+    return {
+        id: order.id,
+        returnedFields: returned,
+        // Declared fields that the project policy did not grant, if any.
+        notGranted: declared.filter(slug => !(slug in order.fields)),
+        fields: order.fields,
+        system: order.system,
+    };
+};

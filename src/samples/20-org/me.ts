@@ -1,12 +1,12 @@
 import type { OrgApi, OrgMembership, OrgPersonnel, OrgPersonnelDisplay, OrgReadOptions } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * The caller's own place in the organization. Without `withDisplay` the answer is structure only (IDs,
  * levels) and costs no record read; `withDisplay: true` adds names in the caller's language, and the
  * TypeScript type then guarantees `display` and `departmentName`.
  */
-export default defineSample({
+export default {
     id: "org.me",
     method: "GET",
     path: "/org/me",
@@ -14,15 +14,16 @@ export default defineSample({
     sdk: ["org.me", "OrgApi", "OrgPersonnel", "OrgMembership", "OrgPersonnelDisplay", "OrgReadOptions"],
     file: "src/samples/20-org/me.ts",
     curl: `curl -s "$BASE/org/me?display=true&language=en-US"`,
-    handler: async ({ org, request }) => {
-        if (request.query.display !== "true") {
-            const me: OrgPersonnel | null = await org.me();
-            if (me === null) return { user: null, reason: "A system or inbound invocation has no personnel" };
-            return { id: me.id, hasAccount: me.accountId !== null, memberships: me.memberships.map(describe) };
-        }
-        return withNames(org, typeof request.query.language === "string" ? { language: request.query.language } : {});
-    },
-});
+} satisfies SampleInfo;
+
+export const orgMe: SampleHandler = async ({ org, request }) => {
+    if (request.query.display !== "true") {
+        const me: OrgPersonnel | null = await org.me();
+        if (me === null) return { user: null, reason: "A system or inbound invocation has no personnel" };
+        return { id: me.id, hasAccount: me.accountId !== null, memberships: me.memberships.map(describe) };
+    }
+    return withNames(org, typeof request.query.language === "string" ? { language: request.query.language } : {});
+};
 
 async function withNames(org: OrgApi, options: OrgReadOptions) {
     const me = await org.me({ ...options, withDisplay: true });

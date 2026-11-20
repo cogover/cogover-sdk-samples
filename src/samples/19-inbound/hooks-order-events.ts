@@ -1,6 +1,6 @@
 import { crypto, ValidationError } from "@cogover/sdk";
 import type { RecountPayload } from "../../jobs/recount-orders.js";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object";
 
@@ -23,7 +23,7 @@ function parseEvent(body: unknown): OrderEvent {
  * background job. External systems retry until they get a 2xx, so the event ID becomes the
  * idempotency key of the job: a retried delivery finds the existing run (`duplicate: true`).
  */
-export default defineSample({
+export default {
     id: "inbound.hooks-order-events",
     method: "POST",
     path: "/hooks/order-events",
@@ -31,25 +31,26 @@ export default defineSample({
     sdk: ["invocation.identity", "request.rawBody", "crypto.hmacSha256", "crypto.timingSafeEqual", "jobs.enqueue"],
     file: "src/samples/19-inbound/hooks-order-events.ts",
     curl: `curl -s -i -X POST "$BASE/hooks/order-events" -H "Content-Type: application/json" --data '{"id":"evt-1","type":"order.paid","orderId":"ORD-1"}'   # 403 here; 202 through /hooks/<inboundId>/order-events`,
-    handler: async ({ invocation, request, response, jobs, log }) => {
-        if (invocation.identity !== "inbound") {
-            return response.json({ r: 403, msg: "This route accepts inbound webhook calls only." }, { status: 403 });
-        }
+} satisfies SampleInfo;
 
-        // Optional second factor: the sender signs the raw body and sends the hex HMAC in a header.
-        const signature = request.headers["x-sample-signature"];
-        if (signature !== undefined) {
-            const expected = await crypto.hmacSha256({ secret: "sample_webhook_secret" }, request.rawBody ?? "");
-            if (!crypto.timingSafeEqual(expected, signature.trim().toLowerCase())) {
-                return response.empty({ status: 401 });
-            }
-        }
+export const inboundHooksOrderEvents: SampleHandler = async ({ invocation, request, response, jobs, log }) => {
+    if (invocation.identity !== "inbound") {
+        return response.json({ r: 403, msg: "This route accepts inbound webhook calls only." }, { status: 403 });
+    }
 
-        const event = parseEvent(request.body);
-        const payload: RecountPayload = { page: 1, counted: 0 };
-        const run = await jobs.enqueue("sample_recount_orders", payload, { idempotencyKey: `order-event:${event.id}` });
-        log.info("Order event accepted", { eventId: event.id, type: event.type, runId: run.runId, duplicate: run.duplicate, inbound: invocation.inbound.id });
-        // Acknowledge at once; the job does the actual work.
-        return response.json({ received: true, eventId: event.id, runId: run.runId, duplicate: run.duplicate }, { status: 202 });
-    },
-});
+    // Optional second factor: the sender signs the raw body and sends the hex HMAC in a header.
+    const signature = request.headers["x-sample-signature"];
+    if (signature !== undefined) {
+        const expected = await crypto.hmacSha256({ secret: "sample_webhook_secret" }, request.rawBody ?? "");
+        if (!crypto.timingSafeEqual(expected, signature.trim().toLowerCase())) {
+            return response.empty({ status: 401 });
+        }
+    }
+
+    const event = parseEvent(request.body);
+    const payload: RecountPayload = { page: 1, counted: 0 };
+    const run = await jobs.enqueue("sample_recount_orders", payload, { idempotencyKey: `order-event:${event.id}` });
+    log.info("Order event accepted", { eventId: event.id, type: event.type, runId: run.runId, duplicate: run.duplicate, inbound: invocation.inbound.id });
+    // Acknowledge at once; the job does the actual work.
+    return response.json({ received: true, eventId: event.id, runId: run.runId, duplicate: run.duplicate }, { status: 202 });
+};

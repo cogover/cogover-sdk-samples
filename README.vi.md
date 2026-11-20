@@ -24,10 +24,11 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
   Process hoặc lượt chạy AI Agent, khai báo bằng `defineJob`.
 - `src/actions/`: một Custom Module Action đọc và một action ghi, khai báo bằng `defineAction` và bộ
   dựng schema `s`, để Process và AI Agent của Workspace gọi.
-- `src/routers/`: một nhóm route nằm trong router riêng, được `src/main.ts` gắn bằng
-  `router.route(prefix, childRouter)` (SDK 0.18.0; xem [Nhóm route](#nhóm-route)).
-- `GET /`: catalog. Liệt kê mọi sample kèm route, các SDK API được minh họa, file nguồn và một lệnh
-  `curl` chạy ngay được.
+- `src/routers/<nhóm>.ts`: mỗi nhóm sample một router, chỉ gồm `createRouter()` và các dòng đăng ký
+  route; `src/main.ts` gắn từng router bằng `router.route(prefix, areaRouter)` (SDK 0.18.0; xem
+  [Giữ module nạp nhanh](#giữ-module-nạp-nhanh)).
+- `GET /`: catalog (`src/catalog.ts`). Liệt kê mọi sample kèm route, các SDK API được minh họa, file
+  nguồn và một lệnh `curl` chạy ngay được.
 - `src/entries/define-script.ts`: kiểu entry point một endpoint (`defineScript`) thay cho router.
 - `src/workspace.d.ts`: khai báo kiểu của hai Object demo, nhờ đó mọi lời gọi record đều được
   kiểm tra kiểu.
@@ -35,7 +36,11 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
 
 ## Yêu cầu
 
-- Node.js 20 trở lên và Cogover Dev CLI 0.20 trở lên (`npm install --global @cogover/dev-cli`).
+- Node.js 20 trở lên và Cogover Dev CLI 0.20 trở lên (`npm install --global @cogover/dev-cli`); từ 0.22
+  thì `cogover-dev publish` in Load profile.
+- Workspace có Runtime hỗ trợ `router.route()` (`@cogover/sdk` 0.18.0): mọi nhóm sample được gắn bằng
+  hàm này, và Workspace build project bằng SDK của chính Runtime của nó, nên publish lên Workspace chưa
+  hỗ trợ sẽ thất bại.
 - TypeScript 5.0 trở lên, phiên bản mà `@cogover/sdk` 0.13 yêu cầu; `npm install` cài sẵn phiên bản phù hợp.
 - Một Workspace Cogover mà bạn có quyền tạo Object và tạo Project Custom Backend Module.
 - Project key để tạo Development Session khi phát triển local, và Workspace API key nếu publish.
@@ -547,15 +552,15 @@ chat cho một nhân sự; tin nhắn đến AI chat của agent với nhân s�
 
 ## Nhóm route
 
-`src/routers/customer-router.ts` giữ ba route trong một router riêng, tạo bằng `createRouter()`. File này
-chỉ chứa router và các dòng đăng ký route; hàm xử lý là các sample trong `src/samples/27-route-groups/`.
-`src/main.ts` gắn router này dưới một prefix có tham số:
+Mỗi nhóm sample là một router riêng (xem [Giữ module nạp nhanh](#giữ-module-nạp-nhanh)). Nhóm
+`27-route-groups` minh hoạ prefix có tham số: `src/routers/route-groups.ts` đăng ký ba route, hàm xử lý là
+các sample trong `src/samples/27-route-groups/`, và `src/main.ts` gắn router này bằng:
 
 ```typescript
-router.route("/route-groups/customers/:customerId", customerRouter);
+router.route("/route-groups/customers/:customerId", routeGroupsRoutes);
 ```
 
-| Route của `customerRouter` | Trả lời tại |
+| Route của `routeGroupsRoutes` | Trả lời tại |
 |---|---|
 | `GET /` | `GET /route-groups/customers/:customerId` |
 | `GET /orders` | `GET /route-groups/customers/:customerId/orders` |
@@ -569,13 +574,62 @@ router.route("/route-groups/customers/:customerId", customerRouter);
 
 **Điều kiện:** `router.route()` cần `@cogover/sdk` từ 0.18.0 **và** Workspace có Runtime hỗ trợ tính năng
 này. Workspace build project bằng SDK của chính Runtime của nó, nên publish project này lên Workspace
-chưa hỗ trợ `router.route()` sẽ thất bại. Khi đó hãy bỏ dòng `router.route(...)` cùng import của nó
-trong `src/main.ts` và ba mục `routeGroups*` trong `src/samples/index.ts`, hoặc publish lên Workspace đã
-hỗ trợ.
+chưa hỗ trợ `router.route()` sẽ thất bại.
 
-Đặt mỗi nhóm route trong một file router mà chỉ `src/main.ts` import cũng là cách hướng dẫn sử dụng SDK
-khuyên ở mục "Keep the module fast to load". Repository này không bật `entryPointParts`, vì các route
-khác được đăng ký thẳng trên router chính.
+## Giữ module nạp nhanh
+
+Mỗi lần thực thi đều nạp code của module. Khi publish một version, Cogover dựng thêm các module nhỏ gọi
+là phần (part), mỗi phần chỉ chứa code mà một trigger, job, action hay một nhóm route cần, và đo thời gian
+nạp. Bố cục của repository này theo đúng mục "Keep the module fast to load" của
+[hướng dẫn sử dụng @cogover/sdk](https://www.npmjs.com/package/@cogover/sdk) (cũng có trong
+`node_modules/@cogover/sdk/docs/en/usage-guide.md`), nên mọi điểm vào đều có phần:
+
+- Mỗi trigger, job và action được định nghĩa và export từ file riêng (`src/triggers/`, `src/jobs/`,
+  `src/actions/`); `src/triggers/index.ts`, `src/jobs/index.ts` và `src/actions/index.ts` chỉ liệt kê.
+- Mỗi nhóm sample có một file router `src/routers/<nhóm>.ts` chỉ gồm `createRouter()` và các dòng đăng
+  ký route. Hàm xử lý vẫn nằm trong file sample, được export theo tên cạnh mục catalog dạng dữ liệu thuần.
+- `src/main.ts` chỉ import, export lại `triggers`, `jobs`, `actions` và gắn router của từng nhóm bằng các
+  dòng `router.route(prefix, areaRouter)` viết tường minh. Catalog `GET /` cũng là một router riêng
+  (`src/routers/catalog.ts`); chỉ nó import `src/samples/index.ts`, danh sách mọi sample.
+- Không file nào chạy code lúc nạp tác động ra ngoài file: không đăng ký vào đối tượng dùng chung, không
+  `Date.now()`, không sửa global. Danh sách trigger, job, action của catalog được tính trong handler của
+  catalog, không phải lúc nạp file.
+
+`cogover-dev publish` (Dev CLI từ 0.22.0, trên Workspace hỗ trợ) in Load profile của version mới. Đây là
+profile của chính repository này trên một Workspace thử nghiệm, không khai báo:
+
+```text
+Load profile (measured at publish, warning threshold 1000 ms):
+  Merged bundle: 359.3 KiB, cold load 217 ms
+  Shared SDK: 182.4 KiB, cold load 60 ms
+  Parts: 39; entry points with a part: triggers 4/4, jobs 5/5, actions 2/2, routes 104/104
+  Runs on: merged bundle (entryPointParts not declared)
+    To run on the parts above, first read "Keep the module fast to load" in the @cogover/sdk usage guide: code that runs while a module loads must not
+    change anything outside that module. Then set "entryPointParts": true in cogover.json, or publish
+    with --parts (it takes effect where the platform runs entry points on parts).
+  Slowest parts (cold load without the SDK):
+    22 ms  src/routers/catalog.ts (74.5 KiB; 1 route)
+    11 ms  src/routers/actions.ts (12.8 KiB; 3 routes)
+    10 ms  src/routers/router.ts (3.3 KiB; 6 routes)
+```
+
+- `Merged bundle` và `Shared SDK`: kích thước và thời gian nạp nguội của module đầy đủ và của SDK mà mọi
+  phần nạp trước. Thời gian dao động giữa các lần đo; chỉ so các số trong cùng một profile.
+- `Parts` và `entry points with a part`: ở đây mọi trigger, job, action và route (103 sample và `GET /`)
+  đều có phần. Điểm vào không có phần được liệt kê ở `Entry points without a part` kèm lý do, còn file
+  chạy code tác động ra ngoài lúc nạp được liệt kê ở `Modules in every part`; repository này không có cả
+  hai.
+- `Runs on`: version đang chạy bằng gì. Không khai báo thì theo mặc định của nền tảng, hiện là module
+  đầy đủ.
+
+Điểm vào chỉ chạy bằng phần khi project khai báo đã tuân các quy tắc của hướng dẫn đó:
+`"entryPointParts": true` trong `cogover.json`, hoặc `cogover-dev publish --parts` cho một lần publish. Cần
+Dev CLI từ 0.22.0 và Workspace hỗ trợ. Nên khai báo khi profile cho thấy lợi ích thật, ví dụ có cảnh báo
+`LOAD_TIME_HIGH` của module đầy đủ, hoặc module đầy đủ nạp chậm hơn SDK dùng chung cộng phần của điểm vào
+cần nhanh (trigger before-change, nếu không có thì route) từ khoảng 200 ms. Ở đây lợi ích khoảng
+217 − (60 + 5) ≈ 150 ms với trigger before-change chậm nhất, nên `cogover.example.json` không khai báo.
+Đọc mục "Keep the module fast to load" của hướng dẫn trước khi khai báo: khai báo nghĩa là bạn xác nhận
+không code nào thay đổi gì bên ngoài file của nó lúc nạp.
 
 ## Entry point một endpoint
 
@@ -602,17 +656,19 @@ thông báo và email tới người thật, các trigger chạy cho mọi lần
 lịch hủy các `sample_order` cũ mỗi đêm trong lúc version còn active. Hai action hiện trong Process
 Builder và AI Agent Builder với mọi thành viên của Workspace, các sample Process và AI Agent tạo
 instance và lượt chạy thật, còn `POST /agents/deliver` khiến AI Agent gửi tin nhắn chat thật cho một nhân
-sự. Hãy publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi
-`src/samples/index.ts`, `src/triggers/index.ts` và `src/actions/index.ts`. Các sample nhóm route cần
-Workspace hỗ trợ `router.route()` (xem [Nhóm route](#nhóm-route)).
+sự. Hãy publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi router của nhóm
+(`src/routers/<nhóm>.ts`) và `src/samples/index.ts`, bỏ trigger, job, action khỏi `src/triggers/index.ts`,
+`src/jobs/index.ts` và `src/actions/index.ts`.
 
 ## Cập nhật theo mỗi bản phát hành SDK
 
 Sau mỗi bản phát hành `@cogover/sdk`, repository này được cập nhật theo các bước:
 
 1. `npm install @cogover/sdk@<version>` và commit lockfile.
-2. Thêm sample cho mỗi export hoặc behavior mới, đăng ký trong `src/samples/index.ts`, và sửa các
-   sample bị ảnh hưởng bởi thay đổi không tương thích.
+2. Thêm sample cho mỗi export hoặc behavior mới: mục catalog và handler đặt tên trong
+   `src/samples/<nhóm>/<tên>.ts`, route trong `src/routers/<nhóm>.ts` (nhóm mới cần thêm dòng
+   `router.route(...)` trong `src/main.ts`) và mục trong `src/samples/index.ts`. Sửa các sample bị ảnh
+   hưởng bởi thay đổi không tương thích.
 3. `npm run check` chạy type checker, test và kiểm tra coverage; bước coverage liệt kê mọi export
    của SDK đang cài mà chưa có sample nào nhắc tới.
 4. `npm run catalog -- --write` làm mới bảng sample trong `README.md` và `README.vi.md`.
@@ -643,15 +699,17 @@ capability bridge giả lập: test kiểm tra request mà SDK gửi đi, không
 │   ├── objects.md            # mô tả từng field của hai Object demo
 │   └── sdk-sample-objects.xlsx
 └── src/
-    ├── main.ts               # đăng ký mọi sample; GET / là catalog
-    ├── sample.ts             # defineSample(): mỗi sample một route
+    ├── main.ts               # import, export lại triggers/jobs/actions, gắn router của các nhóm
+    ├── catalog.ts            # GET /: handler của catalog
+    ├── sample.ts             # kiểu SampleInfo (mục catalog) và SampleHandler
     ├── workspace.d.ts        # khai báo kiểu của Object demo
-    ├── actions/              # defineAction(): Custom Module Action cho Process và AI Agent
+    ├── actions/              # defineAction(), mỗi action một file; index.ts liệt kê
     ├── entries/define-script.ts
-    ├── jobs/                 # defineJob(): job enqueue, job theo lịch, job nhận kết quả Process/AI Agent
-    ├── routers/              # router con, gắn bằng router.route()
-    ├── samples/<nhóm>/<tên>.ts
-    └── triggers/
+    ├── jobs/                 # defineJob(), mỗi job một file; index.ts liệt kê
+    ├── routers/<nhóm>.ts     # chỉ createRouter() và các dòng đăng ký route, mỗi nhóm một file
+    ├── samples/<nhóm>/<tên>.ts  # mục catalog và handler đặt tên của một route
+    ├── samples/index.ts      # mọi mục catalog, chỉ catalog import
+    └── triggers/             # defineTrigger(), mỗi trigger một file; index.ts liệt kê
 ```
 
 ## Giấy phép

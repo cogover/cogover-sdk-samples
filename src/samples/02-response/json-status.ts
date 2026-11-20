@@ -1,12 +1,12 @@
 import type { ResponseApi, ResponseHeaderValue, ResponseInit, ScriptResponse } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * `response.json(body, init)` controls the status and headers of a JSON response. A header value is
  * one string or a readonly array of strings. Hop-by-hop, credential-setting and reserved Cogover
  * headers are rejected.
  */
-export default defineSample({
+export default {
     id: "response.json-status",
     method: "POST",
     path: "/response/json",
@@ -14,15 +14,16 @@ export default defineSample({
     sdk: ["response.json", "ResponseApi", "ResponseInit", "ResponseHeaderValue", "ScriptResponse"],
     file: "src/samples/02-response/json-status.ts",
     curl: `curl -s -i -X POST "$BASE/response/json" -H "Content-Type: application/json" --data '{}'`,
-    handler: ({ response }) => {
-        const api: ResponseApi = response;
-        const tags: ResponseHeaderValue = ["sample", "json"];
-        const init: ResponseInit = {
-            status: 201,
-            headers: { location: "/response/json/ORD-1", "x-sample-tags": tags },
-        };
-        // The helpers return an opaque ScriptResponse; project code never builds the envelope itself.
-        const created: ScriptResponse<{ id: string; created: boolean }> = api.json({ id: "ORD-1", created: true }, init);
-        return created;
-    },
-});
+} satisfies SampleInfo;
+
+export const responseJsonStatus: SampleHandler = ({ response }) => {
+    const api: ResponseApi = response;
+    const tags: ResponseHeaderValue = ["sample", "json"];
+    const init: ResponseInit = {
+        status: 201,
+        headers: { location: "/response/json/ORD-1", "x-sample-tags": tags },
+    };
+    // The helpers return an opaque ScriptResponse; project code never builds the envelope itself.
+    const created: ScriptResponse<{ id: string; created: boolean }> = api.json({ id: "ORD-1", created: true }, init);
+    return created;
+};

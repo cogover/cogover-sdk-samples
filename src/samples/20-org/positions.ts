@@ -1,12 +1,12 @@
 import type { OrgPosition, OrgPositionMembersOptions, OrgPositionsApi } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * The position catalog, for example for a dropdown, and the holders of one position. A department-only
  * position applies to `departmentIds`; any other position applies everywhere except
  * `excludedDepartmentIds`.
  */
-export default defineSample({
+export default {
     id: "org.positions",
     method: "GET",
     path: "/org/positions",
@@ -15,29 +15,30 @@ export default defineSample({
         "OrgPositionMembersOptions"],
     file: "src/samples/20-org/positions.ts",
     curl: `curl -s "$BASE/org/positions?positionId=POS1&departmentId=DEP1"`,
-    handler: async ({ org, request, response }) => {
-        const positions: OrgPositionsApi = org.positions;
-        const positionId = typeof request.query.positionId === "string" ? request.query.positionId : "";
-        if (positionId === "") {
-            const catalog = await positions.list({ withDisplay: true });
-            return catalog.map(position => ({ id: position.id, name: position.display?.name ?? position.id }));
-        }
-        const position: OrgPosition | null = await positions.get(positionId);
-        if (position === null) {
-            return response.json({ code: "POSITION_NOT_FOUND", message: `Position ${positionId} does not exist` }, { status: 404 });
-        }
-        const options: OrgPositionMembersOptions = {
-            accountOnly: true,
-            ...(typeof request.query.departmentId === "string"
-                ? { departmentId: request.query.departmentId, includeSubDepartments: true } : {}),
-        };
-        const holders = await positions.members(position.id, options);
-        return {
-            appliesTo: position.departmentOnly
-                ? { only: position.departmentIds }
-                : { everywhereExcept: position.excludedDepartmentIds },
-            holders: holders.items.map(holder => ({ personnelId: holder.personnelId, departmentId: holder.departmentId })),
-            total: holders.total,
-        };
-    },
-});
+} satisfies SampleInfo;
+
+export const orgPositions: SampleHandler = async ({ org, request, response }) => {
+    const positions: OrgPositionsApi = org.positions;
+    const positionId = typeof request.query.positionId === "string" ? request.query.positionId : "";
+    if (positionId === "") {
+        const catalog = await positions.list({ withDisplay: true });
+        return catalog.map(position => ({ id: position.id, name: position.display?.name ?? position.id }));
+    }
+    const position: OrgPosition | null = await positions.get(positionId);
+    if (position === null) {
+        return response.json({ code: "POSITION_NOT_FOUND", message: `Position ${positionId} does not exist` }, { status: 404 });
+    }
+    const options: OrgPositionMembersOptions = {
+        accountOnly: true,
+        ...(typeof request.query.departmentId === "string"
+            ? { departmentId: request.query.departmentId, includeSubDepartments: true } : {}),
+    };
+    const holders = await positions.members(position.id, options);
+    return {
+        appliesTo: position.departmentOnly
+            ? { only: position.departmentIds }
+            : { everywhereExcept: position.excludedDepartmentIds },
+        holders: holders.items.map(holder => ({ personnelId: holder.personnelId, departmentId: holder.departmentId })),
+        total: holders.total,
+    };
+};

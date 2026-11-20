@@ -1,5 +1,5 @@
 import type { OrgIsInDepartmentOptions, OrgIsManagerOfOptions } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 interface ApprovalRequest {
     /** Personnel who owns the order. */
@@ -15,7 +15,7 @@ interface ApprovalRequest {
  * only when they manage its owner in the order's department, or work in a finance department given by
  * `?financeDepartmentId=` (including its sub-departments).
  */
-export default defineSample<ApprovalRequest>({
+export default {
     id: "org.approvalCheck",
     method: "POST",
     path: "/org/approval-check",
@@ -23,25 +23,26 @@ export default defineSample<ApprovalRequest>({
     sdk: ["org.isManagerOf", "org.isInDepartment", "OrgIsManagerOfOptions", "OrgIsInDepartmentOptions"],
     file: "src/samples/20-org/approval-check.ts",
     curl: `curl -s -X POST "$BASE/org/approval-check?financeDepartmentId=DEP9" -H "content-type: application/json" -d '{"ownerId":"PER2","departmentId":"DEP1"}'`,
-    handler: async ({ org, invocation, request, response }) => {
-        const { ownerId, departmentId, directOnly } = request.body ?? {};
-        if (typeof ownerId !== "string" || ownerId === "") {
-            return response.json({ code: "OWNER_REQUIRED", message: "Send ownerId in the body" }, { status: 400 });
-        }
-        const callerId = invocation.user?.membership.personnelId;
-        if (callerId === undefined) return { allowed: false, reason: `A ${invocation.identity} invocation has no user` };
+} satisfies SampleInfo;
 
-        const managerOptions: OrgIsManagerOfOptions = {
-            directOnly: directOnly === true,
-            ...(typeof departmentId === "string" ? { departmentId } : {}),
-        };
-        if (await org.isManagerOf(callerId, ownerId, managerOptions)) return { allowed: true, reason: "Manager of the owner" };
+export const orgApprovalCheck: SampleHandler<ApprovalRequest> = async ({ org, invocation, request, response }) => {
+    const { ownerId, departmentId, directOnly } = request.body ?? {};
+    if (typeof ownerId !== "string" || ownerId === "") {
+        return response.json({ code: "OWNER_REQUIRED", message: "Send ownerId in the body" }, { status: 400 });
+    }
+    const callerId = invocation.user?.membership.personnelId;
+    if (callerId === undefined) return { allowed: false, reason: `A ${invocation.identity} invocation has no user` };
 
-        const financeId = request.query.financeDepartmentId;
-        const financeOptions: OrgIsInDepartmentOptions = { includeSubDepartments: true };
-        if (typeof financeId === "string" && await org.isInDepartment(callerId, financeId, financeOptions)) {
-            return { allowed: true, reason: "Member of the finance department" };
-        }
-        return { allowed: false, reason: "Only a manager of the owner or finance can approve" };
-    },
-});
+    const managerOptions: OrgIsManagerOfOptions = {
+        directOnly: directOnly === true,
+        ...(typeof departmentId === "string" ? { departmentId } : {}),
+    };
+    if (await org.isManagerOf(callerId, ownerId, managerOptions)) return { allowed: true, reason: "Manager of the owner" };
+
+    const financeId = request.query.financeDepartmentId;
+    const financeOptions: OrgIsInDepartmentOptions = { includeSubDepartments: true };
+    if (typeof financeId === "string" && await org.isInDepartment(callerId, financeId, financeOptions)) {
+        return { allowed: true, reason: "Member of the finance department" };
+    }
+    return { allowed: false, reason: "Only a manager of the owner or finance can approve" };
+};

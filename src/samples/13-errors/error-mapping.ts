@@ -9,7 +9,7 @@ import {
     StateConflictError,
     ValidationError,
 } from "@cogover/sdk";
-import { defineSample } from "../../sample.js";
+import type { SampleHandler, SampleInfo } from "../../sample.js";
 
 /**
  * Every public error class and the HTTP status Cogover answers with when it escapes a handler.
@@ -28,7 +28,7 @@ const ERRORS: Readonly<Record<string, { readonly status: number; readonly raise:
     "api-error": { status: 422, raise: () => { throw new CogoverApiError("SAMPLE_FAILURE", "Sample generic failure", { r: 9999 }); } },
 };
 
-export default defineSample({
+export default {
     id: "errors.mapping",
     method: "GET",
     path: "/errors/mapping/:name",
@@ -39,13 +39,14 @@ export default defineSample({
     ],
     file: "src/samples/13-errors/error-mapping.ts",
     curl: `curl -s -i "$BASE/errors/mapping/rate-limit"   # or /errors/mapping/list`,
-    handler: ({ request }) => {
-        const name = request.params.name ?? "list";
-        if (name === "list") {
-            return Object.entries(ERRORS).map(([key, entry]) => ({ name: key, httpStatus: entry.status }));
-        }
-        const entry = ERRORS[name];
-        if (entry === undefined) throw new ValidationError(`name must be list or one of ${Object.keys(ERRORS).join(", ")}`);
-        return entry.raise();
-    },
-});
+} satisfies SampleInfo;
+
+export const errorsMapping: SampleHandler = ({ request }) => {
+    const name = request.params.name ?? "list";
+    if (name === "list") {
+        return Object.entries(ERRORS).map(([key, entry]) => ({ name: key, httpStatus: entry.status }));
+    }
+    const entry = ERRORS[name];
+    if (entry === undefined) throw new ValidationError(`name must be list or one of ${Object.keys(ERRORS).join(", ")}`);
+    return entry.raise();
+};
