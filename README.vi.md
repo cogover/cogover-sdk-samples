@@ -24,6 +24,8 @@ nên phát triển local, kiểm thử và publish hoạt động giống hệt 
   Process hoặc lượt chạy AI Agent, khai báo bằng `defineJob`.
 - `src/actions/`: một Custom Module Action đọc và một action ghi, khai báo bằng `defineAction` và bộ
   dựng schema `s`, để Process và AI Agent của Workspace gọi.
+- `src/routers/`: một nhóm route nằm trong router riêng, được `src/main.ts` gắn bằng
+  `router.route(prefix, childRouter)` (SDK 0.18.0; xem [Nhóm route](#nhóm-route)).
 - `GET /`: catalog. Liệt kê mọi sample kèm route, các SDK API được minh họa, file nguồn và một lệnh
   `curl` chạy ngay được.
 - `src/entries/define-script.ts`: kiểu entry point một endpoint (`defineScript`) thay cho router.
@@ -323,6 +325,14 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `POST /agents/deliver` | [26-agents/deliver.ts](src/samples/26-agents/deliver.ts) | `agents.start`, `AgentStartOptions.deliverTo`, `AgentDeliveryTarget`, `AgentResultCompletion`, `CogoverApiError` | agents.start(agentId, { instruction, deliverTo: { personnelId, conversation, title }, onResult }): let an AI Agent send a chat message to a personnel. |
 | `GET /agents/delivery/:runId` | [26-agents/delivery.ts](src/samples/26-agents/delivery.ts) | `agents.get`, `AgentRunState.delivery`, `AgentDelivery` | agents.get(runId).delivery: whether the chat message of a deliverTo run was SENT, NOT_SENT, BLOCKED or FAILED, and in which conversation. |
 
+### Nhóm route (router.route)
+
+| Route | File | SDK API | Tóm tắt |
+|---|---|---|---|
+| `GET /route-groups/customers/:customerId` | [27-route-groups/customer.ts](src/samples/27-route-groups/customer.ts) | `router.route`, `createRouter`, `request.params`, `records.get` | router.route(prefix, childRouter): the child route `/` answers at the prefix, whose :customerId is in request.params. |
+| `GET /route-groups/customers/:customerId/orders` | [27-route-groups/customer-orders.ts](src/samples/27-route-groups/customer-orders.ts) | `router.route`, `request.params`, `records.list`, `FilterCondition` | A route of the mounted router: list the orders of the customer named by the prefix parameter :customerId. |
+| `GET /route-groups/customers/:customerId/orders/:orderId` | [27-route-groups/customer-order.ts](src/samples/27-route-groups/customer-order.ts) | `router.route`, `request.params`, `records.get`, `NotFoundError` | Prefix and route parameters together: read one order of the customer; 404 when it belongs to another customer. |
+
 ### Record trigger
 
 | Key | Timing | Operation | File |
@@ -349,7 +359,7 @@ Các bảng dưới đây được sinh từ catalog bằng `npm run catalog -- 
 | `sample_score_customer` | Sample: score customer | Process, AI Agent | read | [score-customer.ts](src/actions/score-customer.ts) |
 | `sample_set_order_status` | Sample: set order status | Process, AI Agent | write | [set-order-status.ts](src/actions/set-order-status.ts) |
 
-Tổng cộng: 99 route, 4 record trigger, 5 background job và 2 Custom Module Action.
+Tổng cộng: 102 route, 4 record trigger, 5 background job và 2 Custom Module Action.
 <!-- catalog:end -->
 
 ## Đọc record
@@ -527,6 +537,38 @@ chat cho một nhân sự; tin nhắn đến AI chat của agent với nhân s�
   một nhân sự trong một lượt chạy và trong một ngày. Hãy đưa người nhận vào `idempotencyKey`: key lặp
   lại trả về lượt chạy đầu tiên kể cả khi `deliverTo` khác.
 
+## Nhóm route
+
+`src/routers/customer-router.ts` giữ ba route trong một router riêng, tạo bằng `createRouter()`. File này
+chỉ chứa router và các dòng đăng ký route; hàm xử lý là các sample trong `src/samples/27-route-groups/`.
+`src/main.ts` gắn router này dưới một prefix có tham số:
+
+```typescript
+router.route("/route-groups/customers/:customerId", customerRouter);
+```
+
+| Route của `customerRouter` | Trả lời tại |
+|---|---|
+| `GET /` | `GET /route-groups/customers/:customerId` |
+| `GET /orders` | `GET /route-groups/customers/:customerId/orders` |
+| `GET /orders/:orderId` | `GET /route-groups/customers/:customerId/orders/:orderId` |
+
+- Route `/` của router con trả lời ngay tại prefix. `request.params` chứa cả tham số của prefix lẫn
+  tham số của route, còn `request.path` là đường dẫn đầy đủ.
+- Route được gắn là route bình thường: cùng `data`, danh tính, quyền và giới hạn như route đăng ký
+  trên router chính. Route được so khớp như thể được đăng ký đúng tại chỗ gọi `route()`; route trùng
+  hoặc nhập nhằng giữa các router ném `ValidationError` khi dựng handler.
+
+**Điều kiện:** `router.route()` cần `@cogover/sdk` từ 0.18.0 **và** Workspace có Runtime hỗ trợ tính năng
+này. Workspace build project bằng SDK của chính Runtime của nó, nên publish project này lên Workspace
+chưa hỗ trợ `router.route()` sẽ thất bại. Khi đó hãy bỏ dòng `router.route(...)` cùng import của nó
+trong `src/main.ts` và ba mục `routeGroups*` trong `src/samples/index.ts`, hoặc publish lên Workspace đã
+hỗ trợ.
+
+Đặt mỗi nhóm route trong một file router mà chỉ `src/main.ts` import cũng là cách hướng dẫn sử dụng SDK
+khuyên ở mục "Keep the module fast to load". Repository này không bật `entryPointParts`, vì các route
+khác được đăng ký thẳng trên router chính.
+
 ## Entry point một endpoint
 
 `src/entries/define-script.ts` minh họa `defineScript`, kiểu entry point cho project chỉ có một
@@ -553,7 +595,8 @@ lịch hủy các `sample_order` cũ mỗi đêm trong lúc version còn active.
 Builder và AI Agent Builder với mọi thành viên của Workspace, các sample Process và AI Agent tạo
 instance và lượt chạy thật, còn `POST /agents/deliver` khiến AI Agent gửi tin nhắn chat thật cho một nhân
 sự. Hãy publish lên Workspace thử nghiệm, hoặc bỏ những sample không muốn khỏi
-`src/samples/index.ts`, `src/triggers/index.ts` và `src/actions/index.ts`.
+`src/samples/index.ts`, `src/triggers/index.ts` và `src/actions/index.ts`. Các sample nhóm route cần
+Workspace hỗ trợ `router.route()` (xem [Nhóm route](#nhóm-route)).
 
 ## Cập nhật theo mỗi bản phát hành SDK
 
@@ -598,6 +641,7 @@ capability bridge giả lập: test kiểm tra request mà SDK gửi đi, không
     ├── actions/              # defineAction(): Custom Module Action cho Process và AI Agent
     ├── entries/define-script.ts
     ├── jobs/                 # defineJob(): job enqueue, job theo lịch, job nhận kết quả Process/AI Agent
+    ├── routers/              # router con, gắn bằng router.route()
     ├── samples/<nhóm>/<tên>.ts
     └── triggers/
 ```

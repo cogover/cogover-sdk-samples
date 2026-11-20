@@ -125,6 +125,10 @@ import agentsGet from "./26-agents/get.js";
 import agentsDeliver from "./26-agents/deliver.js";
 import agentsDelivery from "./26-agents/delivery.js";
 
+import routeGroupsCustomer from "./27-route-groups/customer.js";
+import routeGroupsCustomerOrders from "./27-route-groups/customer-orders.js";
+import routeGroupsCustomerOrder from "./27-route-groups/customer-order.js";
+
 /**
  * Every sample, in catalog order. The list is static on purpose: the Cogover compiler produces one
  * self-contained bundle and does not allow dynamic imports, so a new sample is added here by hand.
@@ -254,4 +258,9 @@ export const samples: readonly Sample[] = [
     agentsGet,
     agentsDeliver,
     agentsDelivery,
+
+    // Served by the child router of src/routers/customer-router.ts, which src/main.ts mounts with router.route().
+    routeGroupsCustomer,
+    routeGroupsCustomerOrders,
+    routeGroupsCustomerOrder,
 ];

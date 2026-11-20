@@ -42,6 +42,7 @@ const GROUP_TITLES: Readonly<Record<string, Readonly<Record<Lang, string>>>> = {
     "24-actions": { en: "Custom Module Action routes", vi: "Route cho Custom Module Action" },
     "25-processes": { en: "Processes", vi: "Process" },
     "26-agents": { en: "AI Agents", vi: "AI Agent" },
+    "27-route-groups": { en: "Route groups (router.route)", vi: "Nhóm route (router.route)" },
 };
 
 const JOB_FILES: Readonly<Record<string, string>> = {

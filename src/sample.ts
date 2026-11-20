@@ -41,3 +41,27 @@ export function defineSample<TInput = unknown, TOutput = unknown>(spec: SampleSp
         },
     });
 }
+
+/**
+ * A sample served by a child router that `src/main.ts` mounts with `router.route(prefix, childRouter)`
+ * (`@cogover/sdk` 0.18.0). Its router file registers `handler`; `path` is the full path the route answers at.
+ */
+export interface MountedSample<TInput = unknown, TOutput = unknown> extends Sample {
+    readonly handler: ScriptHandler<TInput, TOutput>;
+}
+
+/**
+ * Declares a sample whose route lives in a child router (see `src/routers/`). It is listed in the catalog like
+ * any sample, but `register` adds nothing to the main router: the router file registers `handler` under its
+ * prefix, and registering it on the main router as well would make a duplicate route.
+ */
+export function defineMountedSample<TInput = unknown, TOutput = unknown>(
+    spec: SampleSpec<TInput, TOutput>,
+): MountedSample<TInput, TOutput> {
+    return Object.freeze({
+        ...spec,
+        register(): void {
+            // Registered by the child router of the group, mounted by src/main.ts.
+        },
+    });
+}

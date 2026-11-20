@@ -803,6 +803,42 @@ describe("record read samples with a simulated capability bridge", () => {
         assert.equal(plain.body.outcome, "This run was started without deliverTo.");
     });
 
+    test("router.route mounts the customer router under a prefix with a parameter", async () => {
+        const customer = await call("/route-groups/customers/CUS1");
+        assert.deepEqual(customer.requests.map(request => request.payload), [
+            { objectSlug: "sample_customer", id: "CUS1", fields: ["name", "tier", "email"] },
+        ]);
+        assert.deepEqual(customer.body, {
+            id: "CUS1",
+            fields: { name: "Ada Ltd", tier: "gold", email: "ada@example.com" },
+            path: "/route-groups/customers/CUS1",
+            params: { customerId: "CUS1" },
+            orders: "/route-groups/customers/CUS1/orders",
+        });
+
+        const orders = await call("/route-groups/customers/CUS1/orders?limit=5");
+        assert.equal(orders.requests.length, 1);
+        assert.equal(orders.requests[0]?.operation, "records.list");
+        assert.deepEqual(orders.requests[0]?.payload.fields, ["name", "status", "total"]);
+        assert.deepEqual(orders.requests[0]?.payload.where, { kind: "condition", field: "customer", operator: "=", value: "CUS1" });
+        assert.equal(orders.requests[0]?.payload.limit, 5);
+        assert.equal(orders.body.customerId, "CUS1");
+        assert.deepEqual(orders.body.items, [
+            { id: "ORD1", name: "Order ORD1", status: "new", total: 1500 },
+            { id: "ORD2", name: "Order ORD2", status: "new", total: 1500 },
+        ]);
+
+        const order = await call("/route-groups/customers/CUS1/orders/ORD1");
+        assert.deepEqual(order.body.params, { customerId: "CUS1", orderId: "ORD1" });
+        assert.equal(order.body.path, "/route-groups/customers/CUS1/orders/ORD1");
+        assert.deepEqual(order.body.order, { id: "ORD1", name: "Order ORD1", status: "new", total: 1500 });
+
+        // An order of another customer, a missing customer, and a child route without its prefix.
+        for (const path of ["/route-groups/customers/CUS2/orders/ORD1", "/route-groups/customers/CUS-MISSING", "/orders/ORD1"]) {
+            assert.equal((await fetch(`${base}${path}`)).status, 404, `${path} should answer 404`);
+        }
+    });
+
     test("no unexpected script errors were reported", () => {
         assert.deepEqual(errors, []);
     });
